@@ -4,3 +4,7 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=BudenchukM_fullstack-javascript-project-4&metric=coverage)](https://sonarcloud.io/summary/new_code?id=BudenchukM_fullstack-javascript-project-4)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=BudenchukM_fullstack-javascript-project-4&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=BudenchukM_fullstack-javascript-project-4)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=BudenchukM_fullstack-javascript-project-4&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=BudenchukM_fullstack-javascript-project-4)
+
+1 step 
+https://asciinema.org/a/b6REi8cUsHZwQKPy6qebs9378
+
