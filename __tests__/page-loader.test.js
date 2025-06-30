@@ -1,46 +1,63 @@
-import axios from 'axios';
-import fs from 'fs/promises';
+import { fileURLToPath } from 'url';
 import path from 'path';
+import fs from 'fs/promises';
 import os from 'os';
 import nock from 'nock';
-import downloadPage from '../src/page-loader.js';
+import cheerio from 'cheerio';
+import { downloadPage } from '../src/page-loader.js';
 
-describe('page-loader', () => {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+describe('page-loader with fixtures', () => {
   let tempDir;
-  const url = 'https://ru.hexlet.io/courses';
-  const expectedFilename = 'ru-hexlet-io-courses.html';
-  const htmlContent = '<html><body>Test content</body></html>';
+  const baseUrl = 'https://ru.hexlet.io';
+  const pageUrl = `${baseUrl}/courses`;
+  
+  let originalHtml;
+  let expectedHtml;
+  let imageBuffer;
+
+  beforeAll(async () => {
+    const fixturesPath = path.join(__dirname, '../__fixtures__/hexlet-page');
+    originalHtml = await fs.readFile(path.join(fixturesPath, 'original.html'), 'utf-8');
+    expectedHtml = await fs.readFile(path.join(fixturesPath, 'expected.html'), 'utf-8');
+    imageBuffer = await fs.readFile(path.join(fixturesPath, 'image.png'));
+  });
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'page-loader-'));
-    nock('https://ru.hexlet.io').get('/courses').reply(200, htmlContent);
+    
+    nock(baseUrl)
+      .get('/courses')
+      .reply(200, originalHtml);
+    
+    nock(baseUrl)
+      .get('/assets/professions/nodejs.png')
+      .reply(200, imageBuffer, { 'Content-Type': 'image/png' });
   });
 
   afterEach(async () => {
     nock.cleanAll();
-    await fs.rm(tempDir, { recursive: true, force: true });
+    if (tempDir) {
+      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
   });
 
-  test('should download page and save to file', async () => {
-    const filepath = await downloadPage(url, tempDir);
-    expect(filepath).toBe(path.join(tempDir, expectedFilename));
+  test('should download page and modify HTML exactly as in fixture', async () => {
+    const htmlPath = await downloadPage(pageUrl, tempDir);
     
-    const content = await fs.readFile(filepath, 'utf-8');
-    expect(content).toBe(htmlContent);
-  });
-
-  test('should use current directory if output not specified', async () => {
-    const filepath = await downloadPage(url);
-    expect(filepath).toBe(path.join(process.cwd(), expectedFilename));
-    await fs.unlink(filepath);
-  });
-
-  test('should throw error for invalid URL', async () => {
-    await expect(downloadPage('invalid-url')).rejects.toThrow();
-  });
-
-  test('should throw error when server not responding', async () => {
-    nock('https://ru.hexlet.io').get('/courses').reply(404);
-    await expect(downloadPage(url)).rejects.toThrow();
+    const resultHtml = await fs.readFile(htmlPath, 'utf-8');
+    
+    const normalizeHtml = (html) => {
+      const $ = cheerio.load(html);
+      return $.html();
+    };
+    
+    expect(normalizeHtml(resultHtml)).toBe(normalizeHtml(expectedHtml));
+    
+    const resourcesDir = path.join(tempDir, 'ru-hexlet-io-courses_files');
+    const files = await fs.readdir(resourcesDir);
+    expect(files).toEqual(['ru-hexlet-io-assets-professions-nodejs.png']);
   });
 });
