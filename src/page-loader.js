@@ -4,16 +4,14 @@ import path from 'path';
 import { URL } from 'url';
 import * as cheerio from 'cheerio';
 
-const generateNameParts = (urlString) => {
-  const url = new URL(urlString);
-  const pathParts = url.pathname.split('/').filter(Boolean);
-  
-  let name = `${url.hostname}-${pathParts.join('-')}`;
-  name = name.replace(/[^a-zA-Z0-9]/g, '-');
-  name = name.replace(/-+/g, '-');
-  name = name.replace(/^-|-$/g, '');
-  
-  return name;
+const isLocalResource = (baseUrl, resourceUrl) => {
+  try {
+    const base = new URL(baseUrl);
+    const resource = new URL(resourceUrl, base);
+    return resource.hostname === base.hostname;
+  } catch {
+    return false;
+  }
 };
 
 const generateFileName = (urlString, isResource = false) => {
@@ -45,59 +43,77 @@ const generateFileName = (urlString, isResource = false) => {
 };
 
 const downloadResource = (baseUrl, resourceUrl, outputDir) => {
-  const absoluteUrl = new URL(resourceUrl, baseUrl).toString();
-  
-  return axios.get(absoluteUrl, { responseType: 'arraybuffer' })
-    .then(response => {
-      const filename = generateFileName(absoluteUrl, true);
-      const filepath = path.join(outputDir, filename);
-      
-      return fs.writeFile(filepath, response.data)
-        .then(() => filename);
-    })
-    .catch(error => {
-      console.error(`Failed to download resource ${resourceUrl}: ${error.message}`);
-      return null;
-    });
+  return new Promise((resolve) => {
+    const absoluteUrl = new URL(resourceUrl, baseUrl).toString();
+    
+    axios.get(absoluteUrl, { responseType: 'arraybuffer' })
+      .then(response => {
+        const filename = generateFileName(absoluteUrl, true);
+        const filepath = path.join(outputDir, filename);
+        
+        fs.writeFile(filepath, response.data)
+          .then(() => resolve(filename))
+          .catch(error => {
+            console.error(`Failed to save resource ${resourceUrl}: ${error.message}`);
+            resolve(null);
+          });
+      })
+      .catch(error => {
+        console.error(`Failed to download resource ${resourceUrl}: ${error.message}`);
+        resolve(null);
+      });
+  });
 };
 
 const processHtml = (html, baseUrl, resourcesDir) => {
-  const $ = cheerio.load(html);
-  const resourcePromises = [];
-  const resourcesDirName = path.basename(resourcesDir);
-  
-  $('img[src]').each((i, element) => {
-    const resourceUrl = $(element).attr('src');
-    if (!resourceUrl.startsWith('data:') && !resourceUrl.startsWith('http')) {
-      const promise = downloadResource(baseUrl, resourceUrl, resourcesDir)
-        .then(filename => {
-          if (filename) {
-            $(element).attr('src', path.join(resourcesDirName, filename));
-          }
-        });
-      resourcePromises.push(promise);
-    }
+  return new Promise((resolve) => {
+    const $ = cheerio.load(html);
+    const resourcePromises = [];
+    const resourcesDirName = path.basename(resourcesDir);
+
+    const tagsToProcess = [
+      { selector: 'img[src]', attr: 'src' },
+      { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
+      { selector: 'script[src]', attr: 'src' },
+    ];
+
+    tagsToProcess.forEach(({ selector, attr }) => {
+      $(selector).each((i, element) => {
+        const resourceUrl = $(element).attr(attr);
+        if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
+          const promise = downloadResource(baseUrl, resourceUrl, resourcesDir)
+            .then(filename => {
+              if (filename) {
+                $(element).attr(attr, `${resourcesDirName}/${filename}`);
+              }
+            });
+          resourcePromises.push(promise);
+        }
+      });
+    });
+
+    Promise.all(resourcePromises)
+      .then(() => resolve($.html()))
+      .catch(() => resolve($.html()));
   });
-  
-  return Promise.all(resourcePromises)
-    .then(() => $.html());
 };
 
 export const downloadPage = (url, outputDir = process.cwd()) => {
-  return axios.get(url)
-    .then(response => {
-      const pageName = generateNameParts(url);
-      const htmlFilename = `${pageName}.html`;
-      const htmlPath = path.join(outputDir, htmlFilename);
-      const resourcesDir = `${pageName}_files`;
-      const resourcesDirPath = path.join(outputDir, resourcesDir);
-      
-      return fs.mkdir(resourcesDirPath, { recursive: true })
-        .then(() => processHtml(response.data, url, resourcesDirPath))
-        .then(processedHtml => fs.writeFile(htmlPath, processedHtml))
-        .then(() => htmlPath);
-    })
-    .catch(error => {
-      throw new Error(`Failed to download ${url}: ${error.message}`);
-    });
+  return new Promise((resolve, reject) => {
+    axios.get(url)
+      .then(response => {
+        const pageName = generateFileName(url, false).replace('.html', '');
+        const htmlFilename = `${pageName}.html`;
+        const htmlPath = path.join(outputDir, htmlFilename);
+        const resourcesDir = path.join(outputDir, `${pageName}_files`);
+        
+        // Создаем директорию для ресурсов
+        fs.mkdir(resourcesDir, { recursive: true })
+          .then(() => processHtml(response.data, url, resourcesDir))
+          .then(processedHtml => fs.writeFile(htmlPath, processedHtml))
+          .then(() => resolve(htmlPath))
+          .catch(error => reject(new Error(`Failed to process page: ${error.message}`)));
+      })
+      .catch(error => reject(new Error(`Failed to download ${url}: ${error.message}`)));
+  });
 };

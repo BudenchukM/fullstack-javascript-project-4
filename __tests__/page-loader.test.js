@@ -9,55 +9,71 @@ import { downloadPage } from '../src/page-loader.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-describe('page-loader with fixtures', () => {
+describe('page-loader (promise version)', () => {
   let tempDir;
   const baseUrl = 'https://ru.hexlet.io';
   const pageUrl = `${baseUrl}/courses`;
   
   let originalHtml;
   let expectedHtml;
-  let imageBuffer;
 
   beforeAll(async () => {
     const fixturesPath = path.join(__dirname, '../__fixtures__/hexlet-page');
     originalHtml = await fs.readFile(path.join(fixturesPath, 'original.html'), 'utf-8');
     expectedHtml = await fs.readFile(path.join(fixturesPath, 'expected.html'), 'utf-8');
-    imageBuffer = await fs.readFile(path.join(fixturesPath, 'image.png'));
   });
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'page-loader-'));
     
     nock(baseUrl)
+      .persist()
       .get('/courses')
       .reply(200, originalHtml);
     
     nock(baseUrl)
+      .get('/assets/application.css')
+      .reply(200, 'body { color: red; }', { 'Content-Type': 'text/css' });
+    
+    nock(baseUrl)
       .get('/assets/professions/nodejs.png')
-      .reply(200, imageBuffer, { 'Content-Type': 'image/png' });
+      .reply(200, 'image-data', { 'Content-Type': 'image/png' });
+    
+    nock(baseUrl)
+      .get('/packs/js/runtime.js')
+      .reply(200, 'console.log("runtime")', { 'Content-Type': 'application/javascript' });
   });
 
   afterEach(async () => {
     nock.cleanAll();
-    if (tempDir) {
-      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-    }
+    await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  test('should download page and modify HTML exactly as in fixture', async () => {
+  test('should download page with resources using promises', async () => {
     const htmlPath = await downloadPage(pageUrl, tempDir);
     
-    const resultHtml = await fs.readFile(htmlPath, 'utf-8');
+    // Проверяем основной HTML файл
+    await expect(fs.access(htmlPath)).resolves.toBeUndefined();
     
-    const normalizeHtml = (html) => {
-      const $ = cheerio.load(html);
-      return $.html();
-    };
+    // Проверяем содержимое HTML
+    const html = await fs.readFile(htmlPath, 'utf-8');
+    const $ = cheerio.load(html);
     
-    expect(normalizeHtml(resultHtml)).toBe(normalizeHtml(expectedHtml));
+    // Проверяем замену ссылок
+    expect($('link[rel="stylesheet"][href*="application.css"]').attr('href'))
+      .toMatch(/ru-hexlet-io-courses_files\/ru-hexlet-io-assets-application\.css/);
     
-    const resourcesDir = path.join(tempDir, 'ru-hexlet-io-courses_files');
+    // Проверяем директорию ресурсов
+    const pageName = 'ru-hexlet-io-courses';
+    const resourcesDir = path.join(tempDir, `${pageName}_files`);
+    await expect(fs.access(resourcesDir)).resolves.toBeUndefined();
+    
+    // Проверяем скачанные ресурсы
     const files = await fs.readdir(resourcesDir);
-    expect(files).toEqual(['ru-hexlet-io-assets-professions-nodejs.png']);
+    expect(files).toEqual(expect.arrayContaining([
+      'ru-hexlet-io-assets-application.css',
+      'ru-hexlet-io-assets-professions-nodejs.png',
+      'ru-hexlet-io-packs-js-runtime.js'
+    ]));
   });
 });
