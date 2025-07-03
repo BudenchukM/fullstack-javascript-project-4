@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import path from 'path';
 
 const require = createRequire(import.meta.url);
-const { version, description } = require('../package.json');
+const { version } = require('../package.json');
 
 program
   .name('page-loader')

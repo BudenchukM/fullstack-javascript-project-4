@@ -4,6 +4,7 @@ import path from 'path';
 import { URL } from 'url';
 import * as cheerio from 'cheerio';
 import debug from 'debug';
+import Listr from 'listr';
 
 const log = debug('page-loader');
 const logDownload = debug('page-loader:download');
@@ -58,11 +59,10 @@ const generateFileName = (urlString, isResource = false) => {
 };
 
 const downloadResource = (baseUrl, resourceUrl, outputDir) => {
-  log(`Downloading resource: ${resourceUrl}`);
-  
   return new Promise((resolve) => {
     const absoluteUrl = new URL(resourceUrl, baseUrl).toString();
-    
+    log(`Starting download: ${absoluteUrl}`);
+
     axios.get(absoluteUrl, {
       responseType: 'arraybuffer',
       validateStatus: (status) => status === 200
@@ -70,81 +70,90 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
       .then(response => {
         const filename = generateFileName(absoluteUrl, true);
         const filepath = path.join(outputDir, filename);
-        
-        fs.writeFile(filepath, response.data)
+
+        return fs.writeFile(filepath, response.data)
           .then(() => {
             log(`Resource saved: ${filepath}`);
-            resolve(filename);
-          })
-          .catch(error => {
-            log(`Failed to save resource: ${filepath}`);
-            resolve(null);
+            resolve({ success: true, filename });
           });
       })
       .catch(error => {
-        log(`Download failed for ${resourceUrl}: ${error.message}`);
-        resolve(null);
+        log(`Download failed: ${resourceUrl}`, error.message);
+        resolve({ success: false, error: error.message });
       });
   });
 };
 
-const processHtml = (html, baseUrl, resourcesDir) => {
+const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
   return new Promise((resolve) => {
-    try {
-      const $ = cheerio.load(html);
-      const resourcePromises = [];
-      const resourcesDirName = path.basename(resourcesDir);
+    const $ = cheerio.load(html);
+    const resources = [];
 
-      const tagsToProcess = [
-        { selector: 'img[src]', attr: 'src' },
-        { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
-        { selector: 'script[src]', attr: 'src' },
-      ];
+    const tagsToProcess = [
+      { selector: 'img[src]', attr: 'src' },
+      { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
+      { selector: 'script[src]', attr: 'src' },
+    ];
 
-      tagsToProcess.forEach(({ selector, attr }) => {
-        $(selector).each((i, element) => {
-          const resourceUrl = $(element).attr(attr);
-          if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
-            const promise = downloadResource(baseUrl, resourceUrl, resourcesDir)
-              .then(filename => {
-                if (filename) {
-                  $(element).attr(attr, `${resourcesDirName}/${filename}`);
-                }
-              });
-            resourcePromises.push(promise);
-          }
-        });
+    // Собираем все ресурсы
+    tagsToProcess.forEach(({ selector, attr }) => {
+      $(selector).each((i, element) => {
+        const resourceUrl = $(element).attr(attr);
+        if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
+          resources.push({
+            url: resourceUrl,
+            element: $(element),
+            attr
+          });
+        }
       });
+    });
 
-      Promise.all(resourcePromises)
-        .then(() => resolve($.html()))
-        .catch(() => resolve($.html()));
-    } catch (error) {
-      resolve(html);
+    if (resources.length === 0) {
+      return resolve(html);
     }
+
+    // Создаем задачи для Listr
+    const tasks = resources.map(resource => ({
+      title: `Downloading ${resource.url}`,
+      task: () => downloadResource(baseUrl, resource.url, resourcesDir)
+        .then(({ success, filename }) => {
+          if (success) {
+            resource.element.attr(resource.attr, 
+              `${path.basename(resourcesDir)}/${filename}`);
+          }
+        })
+    }));
+
+    // Запускаем с прогресс-баром
+    new Listr(tasks, { 
+      concurrent: true,
+      exitOnError: false 
+    })
+      .run()
+      .then(() => resolve($.html()))
+      .catch(() => resolve($.html()));
   });
 };
 
 export const downloadPage = (url, outputDir = process.cwd()) => {
-  log(`Starting download: ${url} to ${outputDir}`);
-  
   return new Promise((resolve, reject) => {
-    // Проверка доступности директории
+    log(`Starting download: ${url}`);
+
+    // Проверяем доступность директории
     fs.access(outputDir, fs.constants.W_OK)
-      .then(() => {
-        return axios.get(url, {
-          validateStatus: (status) => status === 200
-        });
-      })
+      .then(() => axios.get(url, {
+        validateStatus: (status) => status === 200
+      }))
       .then(response => {
         const pageName = generateFileName(url, false).replace('.html', '');
         const resourcesDir = path.join(outputDir, `${pageName}_files`);
-        
+
         return fs.mkdir(resourcesDir, { recursive: true })
           .then(() => ({ response, pageName, resourcesDir }));
       })
       .then(({ response, pageName, resourcesDir }) => {
-        return processHtml(response.data, url, resourcesDir)
+        return processHtmlWithProgress(response.data, url, resourcesDir)
           .then(processedHtml => {
             const htmlPath = path.join(outputDir, `${pageName}.html`);
             return fs.writeFile(htmlPath, processedHtml)
@@ -152,7 +161,7 @@ export const downloadPage = (url, outputDir = process.cwd()) => {
           });
       })
       .then(htmlPath => {
-        log(`Page successfully saved: ${htmlPath}`);
+        log(`Download completed: ${htmlPath}`);
         resolve(htmlPath);
       })
       .catch(error => {
@@ -167,16 +176,8 @@ export const downloadPage = (url, outputDir = process.cwd()) => {
         } else {
           message = error.message;
         }
-        
-        const loaderError = new PageLoaderError(
-          error.code === 'ENOTFOUND' 
-            ? message
-            : `Failed to download ${url}: ${message}`,
-          error.code || 'PAGE_DOWNLOAD_FAILED'
-        );
-        
-        log(`Error: ${loaderError.message}`);
-        reject(loaderError);
+
+        reject(new PageLoaderError(message, error.code));
       });
   });
 };
