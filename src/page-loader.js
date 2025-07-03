@@ -134,22 +134,17 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
     })
     .run()
     .then(() => {
-      // Унификация формата
-      $('meta').attr('charset', 'utf-8');
-      $('link, img, script').each((_, el) => {
-        if ($(el).attr('href') === '') $(el).removeAttr('href');
-        if ($(el).attr('src') === '') $(el).removeAttr('src');
+      // Форматируем HTML с помощью prettier
+      const formattedHtml = prettier.format($.html(), {
+        parser: 'html',
+        htmlWhitespaceSensitivity: 'ignore',
+        printWidth: 100,
+        tabWidth: 2,
+        useTabs: false,
+        bracketSameLine: false,
+        singleAttributePerLine: false
       });
-
-      const formattedHtml = $.html({
-        decodeEntities: false,
-        xmlMode: false
-      })
-      .replace(/\/>/g, ' />')
-      .replace(/\s+/g, ' ')
-      .replace(/>\s+</g, '><')
-      .trim();
-
+      
       resolve(formattedHtml);
     })
     .catch(() => resolve($.html()));
@@ -178,13 +173,16 @@ export default function downloadPage(url, outputDir = process.cwd()) {
   const mainHtmlPath = path.join(outputDir, `${pageName}.html`);
   const copyHtmlPath = path.join(resourcesDir, `${pageName}.html`);
   
-  // Убедимся, что директория существует
-  return fs.mkdir(resourcesDir, { recursive: true })
-    .then(() => Promise.all([
-      fs.writeFile(mainHtmlPath, processedHtml),
-      fs.writeFile(copyHtmlPath, processedHtml)
-    ]))
-    .then(() => mainHtmlPath);
+  // Убедимся, что HTML правильно отформатирован
+  const finalHtml = prettier.format(processedHtml, {
+    parser: 'html',
+    ...require('./.prettierrc')
+  });
+
+  return Promise.all([
+    fs.writeFile(mainHtmlPath, finalHtml),
+    fs.writeFile(copyHtmlPath, finalHtml)
+  ]).then(() => mainHtmlPath);
 })
       })
       .then(htmlPath => {
