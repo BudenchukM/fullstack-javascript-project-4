@@ -1,6 +1,9 @@
 {
   "name": "@hexlet/code",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=18.14.0 <23.0.0 || >=24.0.0"
+  },
   "description": "[![Actions Status](https://github.com/BudenchukM/fullstack-javascript-project-4/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/BudenchukM/fullstack-javascript-project-4/actions)",
   "main": "src/page-loader.js",
   "type": "module",
