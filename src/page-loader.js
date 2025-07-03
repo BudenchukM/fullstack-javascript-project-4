@@ -136,7 +136,7 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
   });
 };
 
-export default function downloadPage(url, outputDir = process.cwd()) => {
+export default function downloadPage(url, outputDir = process.cwd()) {
   return new Promise((resolve, reject) => {
     log(`Starting download: ${url}`);
 
