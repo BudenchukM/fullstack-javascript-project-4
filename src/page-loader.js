@@ -155,7 +155,7 @@ export default function downloadPage(url, outputDir = process.cwd()) {
       .then(({ response, pageName, resourcesDir }) => {
         return processHtmlWithProgress(response.data, url, resourcesDir)
           .then(processedHtml => {
-            const htmlPath = path.join(outputDir, `${pageName}.html`);
+            const htmlPath = path.join(resourcesDir, `${pageName}.html`);
             return fs.writeFile(htmlPath, processedHtml)
               .then(() => htmlPath);
           });
