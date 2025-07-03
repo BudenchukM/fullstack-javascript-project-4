@@ -47,7 +47,7 @@ const generateFileName = (urlString, isResource = false) => {
       nameParts = nameParts.concat(pathParts.slice(0, -1));
     }
     const fileName = pathParts[pathParts.length - 1];
-    nameParts.push(fileName.replace(path.extname(fileName), '');
+    nameParts.push(fileName.replace(path.extname(fileName), ''));
   } else {
     nameParts = nameParts.concat(pathParts);
   }
