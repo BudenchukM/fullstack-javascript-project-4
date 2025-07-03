@@ -4,7 +4,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import nock from 'nock';
 import * as cheerio from 'cheerio';
-import { downloadPage } from '../src/page-loader.js';
+import downloadPage from '../src/page-loader.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

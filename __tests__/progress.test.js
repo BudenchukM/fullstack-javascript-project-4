@@ -1,4 +1,4 @@
-import { downloadPage } from '../src/page-loader.js';
+import downloadPage from '../src/page-loader.js';
 import fs from 'fs/promises';
 import nock from 'nock';
 import path from 'path';

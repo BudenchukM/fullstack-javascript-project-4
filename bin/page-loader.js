@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { program } from 'commander';
-import { downloadPage } from '../src/page-loader.js';
+import downloadPage from '../src/page-loader.js';
 import { createRequire } from 'module';
 import chalk from 'chalk';
 import path from 'path';
