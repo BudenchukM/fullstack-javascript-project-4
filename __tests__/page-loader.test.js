@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
 import nock from 'nock';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 import { downloadPage } from '../src/page-loader.js';
 
 const __filename = fileURLToPath(import.meta.url);
