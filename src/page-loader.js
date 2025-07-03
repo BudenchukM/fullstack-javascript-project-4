@@ -8,11 +8,16 @@ import Listr from 'listr';
 import prettier from 'prettier';
 
 const log = debug('page-loader');
-const logDownload = debug('page-loader:download');
-const logResources = debug('page-loader:resources');
-const logFS = debug('page-loader:fs');
 
-process.env.DEBUG = 'page-loader*,axios,nock';
+const prettierOptions = {
+  parser: 'html',
+  htmlWhitespaceSensitivity: 'ignore',
+  printWidth: 100,
+  tabWidth: 2,
+  useTabs: false,
+  bracketSameLine: false,
+  singleAttributePerLine: false
+};
 
 class PageLoaderError extends Error {
   constructor(message, code = 'UNKNOWN') {
@@ -41,7 +46,7 @@ const generateFileName = (urlString, isResource = false) => {
       nameParts = nameParts.concat(pathParts.slice(0, -1));
     }
     const fileName = pathParts[pathParts.length - 1];
-    nameParts.push(fileName.replace(path.extname(fileName), ''));
+    nameParts.push(fileName.replace(path.extname(fileName), '');
   } else {
     nameParts = nameParts.concat(pathParts);
   }
@@ -60,29 +65,27 @@ const generateFileName = (urlString, isResource = false) => {
 };
 
 const downloadResource = (baseUrl, resourceUrl, outputDir) => {
-  return new Promise((resolve) => {
-    const absoluteUrl = new URL(resourceUrl, baseUrl).toString();
-    log(`Starting download: ${absoluteUrl}`);
+  const absoluteUrl = new URL(resourceUrl, baseUrl).toString();
+  log(`Starting download: ${absoluteUrl}`);
 
-    axios.get(absoluteUrl, {
-      responseType: 'arraybuffer',
-      validateStatus: (status) => status === 200
+  return axios.get(absoluteUrl, {
+    responseType: 'arraybuffer',
+    validateStatus: (status) => status === 200
+  })
+    .then(response => {
+      const filename = generateFileName(absoluteUrl, true);
+      const filepath = path.join(outputDir, filename);
+      
+      return fs.writeFile(filepath, response.data)
+        .then(() => {
+          log(`Resource saved: ${filepath}`);
+          return { success: true, filename };
+        });
     })
-      .then(response => {
-        const filename = generateFileName(absoluteUrl, true);
-        const filepath = path.join(outputDir, filename);
-
-        return fs.writeFile(filepath, response.data)
-          .then(() => {
-            log(`Resource saved: ${filepath}`);
-            resolve({ success: true, filename });
-          });
-      })
-      .catch(error => {
-        log(`Download failed: ${resourceUrl}`, error.message);
-        resolve({ success: false, error: error.message });
-      });
-  });
+    .catch(error => {
+      log(`Download failed: ${resourceUrl}`, error.message);
+      return { success: false, error: error.message };
+    });
 };
 
 const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
@@ -128,42 +131,24 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
         })
     }));
 
-    const prettierOptions = {
-      parser: 'html',
-      htmlWhitespaceSensitivity: 'ignore',
-      printWidth: 100,
-      tabWidth: 2,
-      useTabs: false,
-      bracketSameLine: false,
-      singleAttributePerLine: false
-    };
-
     new Listr(tasks, { 
       concurrent: true,
       exitOnError: false 
     })
-    .run()
-    .then(() => {
-      const formattedHtml = prettier.format($.html(), prettierOptions);
-      resolve(formattedHtml);
-    })
-    .catch(() => resolve($.html()));
+      .run()
+      .then(() => {
+        const formattedHtml = prettier.format($.html(), prettierOptions);
+        resolve(formattedHtml);
+      })
+      .catch(() => {
+        resolve($.html());
+      });
   });
 };
 
 export default function downloadPage(url, outputDir = process.cwd()) {
   return new Promise((resolve, reject) => {
     log(`Starting download: ${url}`);
-
-    const prettierOptions = {
-      parser: 'html',
-      htmlWhitespaceSensitivity: 'ignore',
-      printWidth: 100,
-      tabWidth: 2,
-      useTabs: false,
-      bracketSameLine: false,
-      singleAttributePerLine: false
-    };
 
     fs.access(outputDir, fs.constants.W_OK)
       .then(() => axios.get(url, {
@@ -180,14 +165,10 @@ export default function downloadPage(url, outputDir = process.cwd()) {
         return processHtmlWithProgress(response.data, url, resourcesDir)
           .then(processedHtml => {
             const mainHtmlPath = path.join(outputDir, `${pageName}.html`);
-            const copyHtmlPath = path.join(resourcesDir, `${pageName}.html`);
+            const formattedHtml = prettier.format(processedHtml, prettierOptions);
             
-            const finalHtml = prettier.format(processedHtml, prettierOptions);
-
-            return Promise.all([
-              fs.writeFile(mainHtmlPath, finalHtml),
-              fs.writeFile(copyHtmlPath, finalHtml)
-            ]).then(() => mainHtmlPath);
+            return fs.writeFile(mainHtmlPath, formattedHtml)
+              .then(() => mainHtmlPath);
           });
       })
       .then(htmlPath => {
