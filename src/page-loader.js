@@ -155,9 +155,15 @@ export default function downloadPage(url, outputDir = process.cwd()) {
       .then(({ response, pageName, resourcesDir }) => {
         return processHtmlWithProgress(response.data, url, resourcesDir)
           .then(processedHtml => {
-            const htmlPath = path.join(resourcesDir, `${pageName}.html`);
-            return fs.writeFile(htmlPath, processedHtml)
-              .then(() => htmlPath);
+            // Сохраняем в корень (для тестов)
+            const mainHtmlPath = path.join(outputDir, `${pageName}.html`);
+            // Сохраняем в _files (для внутреннего использования)
+            const copyHtmlPath = path.join(resourcesDir, `${pageName}.html`);
+            
+            return Promise.all([
+              fs.writeFile(mainHtmlPath, processedHtml),
+              fs.writeFile(copyHtmlPath, processedHtml)
+            ]).then(() => mainHtmlPath);
           });
       })
       .then(htmlPath => {
