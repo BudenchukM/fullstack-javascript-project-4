@@ -87,16 +87,19 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
 
 const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
   return new Promise((resolve) => {
-    const $ = cheerio.load(html);
-    const resources = [];
+    const $ = cheerio.load(html, {
+      decodeEntities: false,
+      xmlMode: false,
+      recognizeSelfClosing: true
+    });
 
+    const resources = [];
     const tagsToProcess = [
       { selector: 'img[src]', attr: 'src' },
       { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
       { selector: 'script[src]', attr: 'src' },
     ];
 
-    // Собираем все ресурсы
     tagsToProcess.forEach(({ selector, attr }) => {
       $(selector).each((i, element) => {
         const resourceUrl = $(element).attr(attr);
@@ -114,7 +117,6 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       return resolve(html);
     }
 
-    // Создаем задачи для Listr
     const tasks = resources.map(resource => ({
       title: `Downloading ${resource.url}`,
       task: () => downloadResource(baseUrl, resource.url, resourcesDir)
@@ -126,22 +128,31 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
         })
     }));
 
-    // Запускаем с прогресс-баром
     new Listr(tasks, { 
       concurrent: true,
       exitOnError: false 
     })
-      .run()
-      .then(() => {
-      // Форматируем HTML перед сохранением
-      const formattedHtml = prettier.format($.html(), {
-        parser: 'html',
-        htmlWhitespaceSensitivity: 'ignore',
-        printWidth: 100,
+    .run()
+    .then(() => {
+      // Унификация формата
+      $('meta').attr('charset', 'utf-8');
+      $('link, img, script').each((_, el) => {
+        if ($(el).attr('href') === '') $(el).removeAttr('href');
+        if ($(el).attr('src') === '') $(el).removeAttr('src');
       });
+
+      const formattedHtml = $.html({
+        decodeEntities: false,
+        xmlMode: false
+      })
+      .replace(/\/>/g, ' />')
+      .replace(/\s+/g, ' ')
+      .replace(/>\s+</g, '><')
+      .trim();
+
       resolve(formattedHtml);
     })
-      .catch(() => resolve($.html()));
+    .catch(() => resolve($.html()));
   });
 };
 
@@ -163,17 +174,18 @@ export default function downloadPage(url, outputDir = process.cwd()) {
       })
       .then(({ response, pageName, resourcesDir }) => {
         return processHtmlWithProgress(response.data, url, resourcesDir)
-          .then(processedHtml => {
-            // Сохраняем в корень (для тестов)
-            const mainHtmlPath = path.join(outputDir, `${pageName}.html`);
-            // Сохраняем в _files (для внутреннего использования)
-            const copyHtmlPath = path.join(resourcesDir, `${pageName}.html`);
-            
-            return Promise.all([
-              fs.writeFile(mainHtmlPath, processedHtml),
-              fs.writeFile(copyHtmlPath, processedHtml)
-            ]).then(() => mainHtmlPath);
-          });
+         .then(processedHtml => {
+  const mainHtmlPath = path.join(outputDir, `${pageName}.html`);
+  const copyHtmlPath = path.join(resourcesDir, `${pageName}.html`);
+  
+  // Убедимся, что директория существует
+  return fs.mkdir(resourcesDir, { recursive: true })
+    .then(() => Promise.all([
+      fs.writeFile(mainHtmlPath, processedHtml),
+      fs.writeFile(copyHtmlPath, processedHtml)
+    ]))
+    .then(() => mainHtmlPath);
+})
       })
       .then(htmlPath => {
         log(`Download completed: ${htmlPath}`);
