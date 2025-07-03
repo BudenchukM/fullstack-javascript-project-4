@@ -128,23 +128,23 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
         })
     }));
 
+    const prettierOptions = {
+      parser: 'html',
+      htmlWhitespaceSensitivity: 'ignore',
+      printWidth: 100,
+      tabWidth: 2,
+      useTabs: false,
+      bracketSameLine: false,
+      singleAttributePerLine: false
+    };
+
     new Listr(tasks, { 
       concurrent: true,
       exitOnError: false 
     })
     .run()
     .then(() => {
-      // Форматируем HTML с помощью prettier
-      const formattedHtml = prettier.format($.html(), {
-        parser: 'html',
-        htmlWhitespaceSensitivity: 'ignore',
-        printWidth: 100,
-        tabWidth: 2,
-        useTabs: false,
-        bracketSameLine: false,
-        singleAttributePerLine: false
-      });
-      
+      const formattedHtml = prettier.format($.html(), prettierOptions);
       resolve(formattedHtml);
     })
     .catch(() => resolve($.html()));
@@ -155,7 +155,16 @@ export default function downloadPage(url, outputDir = process.cwd()) {
   return new Promise((resolve, reject) => {
     log(`Starting download: ${url}`);
 
-    // Проверяем доступность директории
+    const prettierOptions = {
+      parser: 'html',
+      htmlWhitespaceSensitivity: 'ignore',
+      printWidth: 100,
+      tabWidth: 2,
+      useTabs: false,
+      bracketSameLine: false,
+      singleAttributePerLine: false
+    };
+
     fs.access(outputDir, fs.constants.W_OK)
       .then(() => axios.get(url, {
         validateStatus: (status) => status === 200
@@ -169,21 +178,17 @@ export default function downloadPage(url, outputDir = process.cwd()) {
       })
       .then(({ response, pageName, resourcesDir }) => {
         return processHtmlWithProgress(response.data, url, resourcesDir)
-         .then(processedHtml => {
-  const mainHtmlPath = path.join(outputDir, `${pageName}.html`);
-  const copyHtmlPath = path.join(resourcesDir, `${pageName}.html`);
-  
-  // Убедимся, что HTML правильно отформатирован
-  const finalHtml = prettier.format(processedHtml, {
-    parser: 'html',
-    ...require('./.prettierrc')
-  });
+          .then(processedHtml => {
+            const mainHtmlPath = path.join(outputDir, `${pageName}.html`);
+            const copyHtmlPath = path.join(resourcesDir, `${pageName}.html`);
+            
+            const finalHtml = prettier.format(processedHtml, prettierOptions);
 
-  return Promise.all([
-    fs.writeFile(mainHtmlPath, finalHtml),
-    fs.writeFile(copyHtmlPath, finalHtml)
-  ]).then(() => mainHtmlPath);
-})
+            return Promise.all([
+              fs.writeFile(mainHtmlPath, finalHtml),
+              fs.writeFile(copyHtmlPath, finalHtml)
+            ]).then(() => mainHtmlPath);
+          });
       })
       .then(htmlPath => {
         log(`Download completed: ${htmlPath}`);
@@ -205,4 +210,4 @@ export default function downloadPage(url, outputDir = process.cwd()) {
         reject(new PageLoaderError(message, error.code));
       });
   });
-};
+}
