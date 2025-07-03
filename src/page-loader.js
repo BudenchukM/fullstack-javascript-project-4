@@ -5,6 +5,7 @@ import { URL } from 'url';
 import * as cheerio from 'cheerio';
 import debug from 'debug';
 import Listr from 'listr';
+import prettier from 'prettier';
 
 const log = debug('page-loader');
 const logDownload = debug('page-loader:download');
@@ -131,7 +132,15 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       exitOnError: false 
     })
       .run()
-      .then(() => resolve($.html()))
+      .then(() => {
+      // Форматируем HTML перед сохранением
+      const formattedHtml = prettier.format($.html(), {
+        parser: 'html',
+        htmlWhitespaceSensitivity: 'ignore',
+        printWidth: 100,
+      });
+      resolve(formattedHtml);
+    })
       .catch(() => resolve($.html()));
   });
 };
