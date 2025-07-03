@@ -2,7 +2,7 @@ import axios from 'axios';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { URL } from 'url';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 import debug from 'debug';
 import Listr from 'listr';
 import prettier from 'prettier';
@@ -22,6 +22,7 @@ const prettierOptions = {
 class PageLoaderError extends Error {
   constructor(message, code = 'UNKNOWN') {
     super(message);
+    this.name = 'PageLoaderError';
     this.code = code;
   }
 }
@@ -46,7 +47,7 @@ const generateFileName = (urlString, isResource = false) => {
       nameParts = nameParts.concat(pathParts.slice(0, -1));
     }
     const fileName = pathParts[pathParts.length - 1];
-    nameParts.push(fileName.replace(path.extname(fileName), ''));
+    nameParts.push(fileName.replace(path.extname(fileName), '');
   } else {
     nameParts = nameParts.concat(pathParts);
   }
