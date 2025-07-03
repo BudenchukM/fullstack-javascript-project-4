@@ -12,7 +12,7 @@ const { version, description } = require('../package.json');
 program
   .name('page-loader')
   .version(version)
-  .description(description)
+  .description('Download web page with all resources')
   .argument('<url>', 'URL of the page to download')
   .option('-o, --output [dir]', 'output directory (default: current directory)', process.cwd())
   .action((url, options) => {
