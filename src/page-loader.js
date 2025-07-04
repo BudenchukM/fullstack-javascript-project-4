@@ -160,16 +160,22 @@ export default function downloadPage(url, outputDir = process.cwd()) {
       .then(response => {
         const pageName = generateFileName(url);
         const resourcesDir = path.join(outputDir, `${pageName}_files`);
+        const htmlFilePath = path.join(outputDir, `${pageName}.html`);
 
         return fs.mkdir(resourcesDir, { recursive: true })
           .then(() => processHtmlWithProgress(response.data, url, resourcesDir))
           .then(processedHtml => {
-            const filePath = path.join(outputDir, `${pageName}.html`);
-            // Убедимся, что передаем строку
-            return fs.writeFile(filePath, processedHtml.toString());
+            // Убедимся, что директория существует перед записью
+            return fs.access(outputDir)
+              .catch(() => fs.mkdir(outputDir, { recursive: true }))
+              .then(() => fs.writeFile(htmlFilePath, processedHtml));
           })
-          .then(() => resolve(path.join(outputDir, `${pageName}.html`)));
+          .then(() => {
+            log(`Page saved: ${htmlFilePath}`);
+            return htmlFilePath;
+          });
       })
+      .then(resolve)
       .catch(error => {
         let message;
         if (error.code === 'ENOTFOUND') {
