@@ -43,17 +43,14 @@ const generateFileName = (urlString, isResource = false) => {
              url.pathname.replace(/\//g, '-')
                          .replace(/-+$/, '');
 
-  // Для HTML-ресурсов сохраняем .html в конце
-  if (isResource && url.pathname.endsWith('.html')) {
-    return `${name}.html`;  // Явно добавляем .html
+  if (isResource && (url.pathname.endsWith('.html') || urlString.endsWith('.html'))) {
+    return `${name}.html`;
   }
   
-  // Для остальных ресурсов не добавляем расширение
   if (isResource) {
     return name;
   }
   
-  // Для основной страницы гарантируем .html в конце
   return name.endsWith('.html') ? name : `${name}.html`;
 };
 
@@ -61,14 +58,18 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
   const absoluteUrl = new URL(resourceUrl, baseUrl).toString();
   log(`Starting download: ${absoluteUrl}`);
 
+  // Добавленная проверка скачивания HTML-ресурсов
+  console.log('Downloading resource:', absoluteUrl);
+  const filename = generateFileName(absoluteUrl, true);
+  console.log('Generated filename:', filename);
+  const filepath = path.join(outputDir, filename);
+  console.log('Full path:', filepath);
+
   return axios.get(absoluteUrl, {
     responseType: 'arraybuffer',
     validateStatus: (status) => status === 200
   })
     .then(response => {
-      const filename = generateFileName(absoluteUrl, true);
-      const filepath = path.join(outputDir, filename);
-
       const data = Buffer.isBuffer(response.data) 
         ? response.data 
         : Buffer.from(response.data);
@@ -76,10 +77,12 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
       return fs.writeFile(filepath, data)
         .then(() => {
           log(`Resource saved: ${filepath}`);
+          console.log(`Resource successfully saved: ${filepath}`); // Дополнительный лог
           return { success: true, filename };
         });
     })
     .catch(error => {
+      console.error(`Failed to download resource ${absoluteUrl}:`, error.message);
       log(`Download failed: ${resourceUrl}`, error.message);
       return { success: false, error: error.message };
     });
@@ -98,16 +101,15 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       { selector: 'img[src]', attr: 'src' },
       { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
       { selector: 'script[src]', attr: 'src' },
-      { selector: 'a[href$=".html"]', attr: 'href' } // Явно обрабатываем HTML-ссылки
+      { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' }
     ];
 
-    // Добавляем отладочный вывод
-    log('Processing HTML for resources:');
+    console.log('Processing HTML for base URL:', baseUrl);
     tagsToProcess.forEach(({ selector, attr }) => {
       $(selector).each((i, element) => {
         const resourceUrl = $(element).attr(attr);
         if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
-          log(`Found resource: ${resourceUrl}`);
+          console.log('Found local resource:', resourceUrl);
           resources.push({
             url: resourceUrl,
             element: $(element),
@@ -118,17 +120,18 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
     });
 
     if (resources.length === 0) {
-      log('No local resources found');
+      console.log('No local resources found');
       return resolve(prettier.format(html, prettierOptions));
     }
 
+    console.log(`Found ${resources.length} resources to download`);
     const tasks = resources.map(resource => ({
       title: `Downloading ${resource.url}`,
       task: () => downloadResource(baseUrl, resource.url, resourcesDir)
         .then(({ success, filename }) => {
           if (success) {
             const newPath = `${path.basename(resourcesDir)}/${filename}`;
-            log(`Updating resource reference to: ${newPath}`);
+            console.log(`Updating resource reference from ${resource.url} to ${newPath}`);
             resource.element.attr(resource.attr, newPath);
           }
         })
@@ -153,31 +156,36 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
 export default function downloadPage(url, outputDir = process.cwd()) {
   return new Promise((resolve, reject) => {
     log(`Starting download: ${url}`);
+    console.log(`Starting page download: ${url}`);
 
     fs.access(outputDir, fs.constants.W_OK)
       .then(() => axios.get(url))
       .then(response => {
         const pageName = generateFileName(url);
+        console.log(`Generated page name: ${pageName}`);
         const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`);
+        console.log(`Resources directory: ${resourcesDir}`);
         const htmlFilePath = path.join(outputDir, pageName);
+        console.log(`HTML file path: ${htmlFilePath}`);
 
-        log(`Creating resources directory: ${resourcesDir}`);
         return fs.mkdir(resourcesDir, { recursive: true })
           .then(() => {
-            log(`Processing HTML and downloading resources`);
+            console.log('Directory created successfully');
             return processHtmlWithProgress(response.data, url, resourcesDir);
           })
           .then(processedHtml => {
-            log(`Saving main page to: ${htmlFilePath}`);
+            console.log('Saving main HTML file');
             return fs.writeFile(htmlFilePath, processedHtml);
           })
           .then(() => {
-            log(`Page successfully saved: ${htmlFilePath}`);
+            console.log(`Page successfully saved to: ${htmlFilePath}`);
+            log(`Page saved: ${htmlFilePath}`);
             return htmlFilePath;
           });
       })
       .then(resolve)
       .catch(error => {
+        console.error('Error during page download:', error);
         let message;
         if (error.code === 'ENOTFOUND') {
           message = `Network error: could not resolve host for ${url}`;
