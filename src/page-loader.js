@@ -99,15 +99,15 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' }
     ];
 
-    // Явно добавляем главную страницу как ресурс, если это требуется
-    if (baseUrl.endsWith('.html')) {
-      resources.push({
-        url: baseUrl,
-        element: null,
-        attr: null,
-        isMainPage: true
-      });
-    }
+    // Добавляем главную страницу как ресурс
+    resources.push({
+      url: baseUrl,
+      element: null,
+      attr: null,
+      isMainPage: true
+    });
+
+   
 
     tagsToProcess.forEach(({ selector, attr }) => {
       $(selector).each((i, element) => {
