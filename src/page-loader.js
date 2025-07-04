@@ -39,11 +39,13 @@ const isLocalResource = (baseUrl, resourceUrl) => {
 
 const generateFileName = (urlString, isResource = false) => {
   const url = new URL(urlString);
-  let name = url.hostname + url.pathname.replace(/\//g, '-').replace(/\.html$/, '');
+  // Заменяем точки на дефисы в hostname и убираем .html в конце пути
+  let name = url.hostname.replace(/\./g, '-') + 
+             url.pathname.replace(/\//g, '-')
+                         .replace(/\.html$/, '')
+                         .replace(/-+$/, '');
   
-  // Убираем лишние дефисы в конце
-  name = name.replace(/-+$/, '');
-  
+  // Добавляем расширение только если это не ресурс
   return isResource ? name : `${name}.html`;
 };
 
@@ -141,14 +143,12 @@ export default function downloadPage(url, outputDir = process.cwd()) {
       .then(() => axios.get(url))
       .then(response => {
         const pageName = generateFileName(url);
-        const resourcesDir = path.join(outputDir, `${pageName}_files`);
-        const htmlFilePath = path.join(outputDir, `${pageName}.html`);
+        const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`);
+        const htmlFilePath = path.join(outputDir, pageName);
 
         return fs.mkdir(resourcesDir, { recursive: true })
           .then(() => processHtmlWithProgress(response.data, url, resourcesDir))
-          .then(processedHtml => {
-            return fs.writeFile(htmlFilePath, processedHtml);
-          })
+          .then(processedHtml => fs.writeFile(htmlFilePath, processedHtml))
           .then(() => {
             log(`Page saved: ${htmlFilePath}`);
             return htmlFilePath;
