@@ -17,8 +17,8 @@ describe('page-loader (promise version)', () => {
   let originalHtml
 
   beforeAll(async () => {
-  const fixturesPath = path.join(__dirname, '../__fixtures__/hexlet-page')
-  originalHtml = await fs.readFile(path.join(fixturesPath, 'original.html'), 'utf-8')
+    const fixturesPath = path.join(__dirname, '../__fixtures__/hexlet-page')
+    originalHtml = await fs.readFile(path.join(fixturesPath, 'original.html'), 'utf-8')
   })
 
   beforeEach(async () => {
