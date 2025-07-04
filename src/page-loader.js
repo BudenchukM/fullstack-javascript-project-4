@@ -37,7 +37,6 @@ const isLocalResource = (baseUrl, resourceUrl) => {
   }
 };
 
-// Обновленная функция generateFileName
 const generateFileName = (urlString, isResource = false) => {
   const url = new URL(urlString);
   let name = url.hostname.replace(/\./g, '-') + 
@@ -46,19 +45,18 @@ const generateFileName = (urlString, isResource = false) => {
 
   // Для HTML-ресурсов сохраняем .html в конце
   if (isResource && url.pathname.endsWith('.html')) {
-    return name;
+    return `${name}.html`;  // Явно добавляем .html
   }
   
   // Для остальных ресурсов не добавляем расширение
   if (isResource) {
-    return name.replace(/\.html$/, '');
+    return name;
   }
   
   // Для основной страницы гарантируем .html в конце
   return name.endsWith('.html') ? name : `${name}.html`;
 };
 
-// Обновленная функция downloadResource
 const downloadResource = (baseUrl, resourceUrl, outputDir) => {
   const absoluteUrl = new URL(resourceUrl, baseUrl).toString();
   log(`Starting download: ${absoluteUrl}`);
@@ -68,7 +66,6 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
     validateStatus: (status) => status === 200
   })
     .then(response => {
-      const isHtmlResource = resourceUrl.endsWith('.html');
       const filename = generateFileName(absoluteUrl, true);
       const filepath = path.join(outputDir, filename);
 
@@ -88,7 +85,6 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
     });
 };
 
-// Обновленная функция processHtmlWithProgress
 const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
   return new Promise((resolve) => {
     const $ = cheerio.load(html, {
@@ -105,10 +101,13 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       { selector: 'a[href$=".html"]', attr: 'href' } // Явно обрабатываем HTML-ссылки
     ];
 
+    // Добавляем отладочный вывод
+    log('Processing HTML for resources:');
     tagsToProcess.forEach(({ selector, attr }) => {
       $(selector).each((i, element) => {
         const resourceUrl = $(element).attr(attr);
         if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
+          log(`Found resource: ${resourceUrl}`);
           resources.push({
             url: resourceUrl,
             element: $(element),
@@ -119,6 +118,7 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
     });
 
     if (resources.length === 0) {
+      log('No local resources found');
       return resolve(prettier.format(html, prettierOptions));
     }
 
@@ -128,6 +128,7 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
         .then(({ success, filename }) => {
           if (success) {
             const newPath = `${path.basename(resourcesDir)}/${filename}`;
+            log(`Updating resource reference to: ${newPath}`);
             resource.element.attr(resource.attr, newPath);
           }
         })
@@ -149,7 +150,6 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
   });
 };
 
-
 export default function downloadPage(url, outputDir = process.cwd()) {
   return new Promise((resolve, reject) => {
     log(`Starting download: ${url}`);
@@ -161,11 +161,18 @@ export default function downloadPage(url, outputDir = process.cwd()) {
         const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`);
         const htmlFilePath = path.join(outputDir, pageName);
 
+        log(`Creating resources directory: ${resourcesDir}`);
         return fs.mkdir(resourcesDir, { recursive: true })
-          .then(() => processHtmlWithProgress(response.data, url, resourcesDir))
-          .then(processedHtml => fs.writeFile(htmlFilePath, processedHtml))
           .then(() => {
-            log(`Page saved: ${htmlFilePath}`);
+            log(`Processing HTML and downloading resources`);
+            return processHtmlWithProgress(response.data, url, resourcesDir);
+          })
+          .then(processedHtml => {
+            log(`Saving main page to: ${htmlFilePath}`);
+            return fs.writeFile(htmlFilePath, processedHtml);
+          })
+          .then(() => {
+            log(`Page successfully saved: ${htmlFilePath}`);
             return htmlFilePath;
           });
       })
@@ -181,6 +188,7 @@ export default function downloadPage(url, outputDir = process.cwd()) {
         } else {
           message = error.message;
         }
+        log(`Error occurred: ${message}`);
         reject(new PageLoaderError(message, error.code));
       });
   });
