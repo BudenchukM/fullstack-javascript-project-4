@@ -43,14 +43,22 @@ const generateFileName = (urlString, isResource = false) => {
              url.pathname.replace(/\//g, '-')
                          .replace(/-+$/, '');
 
+  // Для главной страницы как ресурса
+  if (isResource && urlString.endsWith(url.pathname)) {
+    return `${name}.html`;
+  }
+  
+  // Для HTML-ресурсов
   if (isResource && (url.pathname.endsWith('.html') || urlString.endsWith('.html'))) {
     return `${name}.html`;
   }
   
+  // Для остальных ресурсов
   if (isResource) {
     return name;
   }
   
+  // Для основной страницы
   return name.endsWith('.html') ? name : `${name}.html`;
 };
 
@@ -90,12 +98,8 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
 
 const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
   return new Promise((resolve) => {
-    const $ = cheerio.load(html, {
-      decodeEntities: false,
-      xmlMode: false,
-      recognizeSelfClosing: true
-    });
-
+    const $ = cheerio.load(html);
+    
     const resources = [];
     const tagsToProcess = [
       { selector: 'img[src]', attr: 'src' },
@@ -104,12 +108,20 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' }
     ];
 
-    console.log('Processing HTML for base URL:', baseUrl);
+    // Явно добавляем главную страницу как ресурс, если это требуется
+    if (baseUrl.endsWith('.html')) {
+      resources.push({
+        url: baseUrl,
+        element: null,
+        attr: null,
+        isMainPage: true
+      });
+    }
+
     tagsToProcess.forEach(({ selector, attr }) => {
       $(selector).each((i, element) => {
         const resourceUrl = $(element).attr(attr);
         if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
-          console.log('Found local resource:', resourceUrl);
           resources.push({
             url: resourceUrl,
             element: $(element),
@@ -120,22 +132,27 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
     });
 
     if (resources.length === 0) {
-      console.log('No local resources found');
       return resolve(prettier.format(html, prettierOptions));
     }
 
-    console.log(`Found ${resources.length} resources to download`);
-    const tasks = resources.map(resource => ({
-      title: `Downloading ${resource.url}`,
-      task: () => downloadResource(baseUrl, resource.url, resourcesDir)
-        .then(({ success, filename }) => {
-          if (success) {
-            const newPath = `${path.basename(resourcesDir)}/${filename}`;
-            console.log(`Updating resource reference from ${resource.url} to ${newPath}`);
-            resource.element.attr(resource.attr, newPath);
-          }
-        })
-    }));
+    const tasks = resources.map(resource => {
+      if (resource.isMainPage) {
+        return {
+          title: `Downloading main page as resource`,
+          task: () => downloadResource(baseUrl, baseUrl, resourcesDir)
+        };
+      }
+      return {
+        title: `Downloading ${resource.url}`,
+        task: () => downloadResource(baseUrl, resource.url, resourcesDir)
+          .then(({ success, filename }) => {
+            if (success) {
+              const newPath = `${path.basename(resourcesDir)}/${filename}`;
+              resource.element.attr(resource.attr, newPath);
+            }
+          })
+      };
+    });
 
     new Listr(tasks, { 
       concurrent: true,
