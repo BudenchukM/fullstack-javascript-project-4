@@ -1,13 +1,13 @@
-import axios from 'axios';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { URL } from 'url';
-import * as cheerio from 'cheerio';
-import debug from 'debug';
-import Listr from 'listr';
-import prettier from 'prettier';
+import axios from 'axios'
+import { promises as fs } from 'fs'
+import path from 'path'
+import { URL } from 'url'
+import * as cheerio from 'cheerio'
+import debug from 'debug'
+import Listr from 'listr'
+import prettier from 'prettier'
 
-const log = debug('page-loader');
+const log = debug('page-loader')
 
 const prettierOptions = {
   parser: 'html',
@@ -16,26 +16,27 @@ const prettierOptions = {
   tabWidth: 2,
   useTabs: false,
   bracketSameLine: false,
-  singleAttributePerLine: false
-};
+  singleAttributePerLine: false,
+}
 
 class PageLoaderError extends Error {
   constructor(message, code = 'UNKNOWN') {
-    super(message);
-    this.name = 'PageLoaderError';
-    this.code = code;
+    super(message)
+    this.name = 'PageLoaderError'
+    this.code = code
   }
 }
 
 const isLocalResource = (baseUrl, resourceUrl) => {
   try {
-    const base = new URL(baseUrl);
-    const resource = new URL(resourceUrl, base);
-    return resource.hostname === base.hostname;
-  } catch {
-    return false;
+    const base = new URL(baseUrl)
+    const resource = new URL(resourceUrl, base)
+    return resource.hostname === base.hostname
+  } 
+  catch {
+    return false
   }
-};
+}
 
 const generateFileName = (urlString, isResource = false) => {
   const url = new URL(urlString);
