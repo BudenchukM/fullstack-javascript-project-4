@@ -37,26 +37,28 @@ const isLocalResource = (baseUrl, resourceUrl) => {
   }
 };
 
+// Обновленная функция generateFileName
 const generateFileName = (urlString, isResource = false) => {
   const url = new URL(urlString);
   let name = url.hostname.replace(/\./g, '-') + 
              url.pathname.replace(/\//g, '-')
                          .replace(/-+$/, '');
 
-  // Для HTML-ресурсов сохраняем расширение .html
+  // Для HTML-ресурсов сохраняем .html в конце
   if (isResource && url.pathname.endsWith('.html')) {
-    return `${name}.html`;
+    return name;
   }
   
   // Для остальных ресурсов не добавляем расширение
   if (isResource) {
-    return name;
+    return name.replace(/\.html$/, '');
   }
   
-  // Для основной страницы добавляем .html, если его еще нет
+  // Для основной страницы гарантируем .html в конце
   return name.endsWith('.html') ? name : `${name}.html`;
 };
 
+// Обновленная функция downloadResource
 const downloadResource = (baseUrl, resourceUrl, outputDir) => {
   const absoluteUrl = new URL(resourceUrl, baseUrl).toString();
   log(`Starting download: ${absoluteUrl}`);
@@ -66,6 +68,7 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
     validateStatus: (status) => status === 200
   })
     .then(response => {
+      const isHtmlResource = resourceUrl.endsWith('.html');
       const filename = generateFileName(absoluteUrl, true);
       const filepath = path.join(outputDir, filename);
 
@@ -85,6 +88,7 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
     });
 };
 
+// Обновленная функция processHtmlWithProgress
 const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
   return new Promise((resolve) => {
     const $ = cheerio.load(html, {
@@ -98,7 +102,7 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       { selector: 'img[src]', attr: 'src' },
       { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
       { selector: 'script[src]', attr: 'src' },
-      { selector: 'a[href$=".html"]', attr: 'href' } // Добавляем обработку HTML-ссылок
+      { selector: 'a[href$=".html"]', attr: 'href' } // Явно обрабатываем HTML-ссылки
     ];
 
     tagsToProcess.forEach(({ selector, attr }) => {
@@ -144,6 +148,7 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       });
   });
 };
+
 
 export default function downloadPage(url, outputDir = process.cwd()) {
   return new Promise((resolve, reject) => {
