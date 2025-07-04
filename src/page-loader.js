@@ -41,8 +41,8 @@ const isLocalResource = (baseUrl, resourceUrl) => {
 const generateFileName = (urlString, isResource = false) => {
   const url = new URL(urlString)
   let name = url.hostname.replace(/\./g, '-')
-      + url.pathname.replace(/\//g, '-')
-                    .replace(/-+$/, '')
+    + url.pathname.replace(/\//g, '-')
+        .replace(/-+$/, '')
 
   // Для основной страницы всегда .html
   if (!isResource) {
@@ -69,20 +69,20 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
 
   return axios.get(absoluteUrl, {
     responseType: 'arraybuffer',
-    validateStatus: (status) => status === 200
+    validateStatus: status => status === 200,
   })
-    .then(response => {
-      const data = Buffer.isBuffer(response.data) 
-        ? response.data 
-        : Buffer.from(response.data);
-      
+    .then((response) => {
+      const data = Buffer.isBuffer(response.data)
+        ? response.data
+        : Buffer.from(response.data)
+
       return fs.writeFile(filepath, data)
         .then(() => {
           log(`Resource saved: ${filepath}`)
           return { success: true, filename }
         })
     })
-    .catch(error => {
+    .catch((error) => {
       log(`Download failed: ${resourceUrl}`, error.message)
       return { success: false, error: error.message }
     })
@@ -91,13 +91,13 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
 const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
   return new Promise((resolve) => {
     const $ = cheerio.load(html)
-    
+
     const resources = []
     const tagsToProcess = [
       { selector: 'img[src]', attr: 'src' },
       { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
       { selector: 'script[src]', attr: 'src' },
-      { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' }
+      { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' },
     ]
 
     // Добавляем главную страницу как ресурс
@@ -105,19 +105,17 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       url: baseUrl,
       element: null,
       attr: null,
-      isMainPage: true
+      isMainPage: true,
     })
-
-
 
     tagsToProcess.forEach(({ selector, attr }) => {
       $(selector).each((i, element) => {
-        const resourceUrl = $(element).attr(attr);
+        const resourceUrl = $(element).attr(attr)
         if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
           resources.push({
             url: resourceUrl,
             element: $(element),
-            attr
+            attr,
           })
         }
       })
