@@ -42,36 +42,30 @@ const generateFileName = (urlString, isResource = false) => {
   let name = url.hostname.replace(/\./g, '-') + 
              url.pathname.replace(/\//g, '-')
                          .replace(/-+$/, '');
+  
+  // Если это не ресурс - всегда возвращаем с .html
+  if (!isResource) {
+    return name.endsWith('.html') ? name : `${name}.html`;
+  }
 
-  // Для главной страницы как ресурса
-  if (isResource && urlString.endsWith(url.pathname)) {
-    return `${name}.html`;
+  // Для ресурсов сохраняем оригинальное расширение
+  const extensionMatch = url.pathname.match(/\.([a-z0-9]+)$/i);
+  const extension = extensionMatch ? extensionMatch[1] : null;
+  
+  if (extension) {
+    return `${name}.${extension}`;
   }
   
-  // Для HTML-ресурсов
-  if (isResource && (url.pathname.endsWith('.html') || urlString.endsWith('.html'))) {
-    return `${name}.html`;
-  }
-  
-  // Для остальных ресурсов
-  if (isResource) {
-    return name;
-  }
-  
-  // Для основной страницы
-  return name.endsWith('.html') ? name : `${name}.html`;
+  // Если расширения нет, добавляем .html (для главной страницы как ресурса)
+  return `${name}.html`;
 };
 
 const downloadResource = (baseUrl, resourceUrl, outputDir) => {
   const absoluteUrl = new URL(resourceUrl, baseUrl).toString();
   log(`Starting download: ${absoluteUrl}`);
 
-  // Добавленная проверка скачивания HTML-ресурсов
-  console.log('Downloading resource:', absoluteUrl);
   const filename = generateFileName(absoluteUrl, true);
-  console.log('Generated filename:', filename);
   const filepath = path.join(outputDir, filename);
-  console.log('Full path:', filepath);
 
   return axios.get(absoluteUrl, {
     responseType: 'arraybuffer',
@@ -85,12 +79,10 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
       return fs.writeFile(filepath, data)
         .then(() => {
           log(`Resource saved: ${filepath}`);
-          console.log(`Resource successfully saved: ${filepath}`); // Дополнительный лог
           return { success: true, filename };
         });
     })
     .catch(error => {
-      console.error(`Failed to download resource ${absoluteUrl}:`, error.message);
       log(`Download failed: ${resourceUrl}`, error.message);
       return { success: false, error: error.message };
     });
