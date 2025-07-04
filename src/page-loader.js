@@ -43,21 +43,20 @@ const generateFileName = (urlString, isResource = false) => {
              url.pathname.replace(/\//g, '-')
                          .replace(/-+$/, '');
   
-  // Если это не ресурс - всегда возвращаем с .html
+  // Для основной страницы всегда .html
   if (!isResource) {
     return name.endsWith('.html') ? name : `${name}.html`;
   }
 
-  // Для ресурсов сохраняем оригинальное расширение
-  const extensionMatch = url.pathname.match(/\.([a-z0-9]+)$/i);
-  const extension = extensionMatch ? extensionMatch[1] : null;
-  
-  if (extension) {
-    return `${name}.${extension}`;
-  }
-  
-  // Если расширения нет, добавляем .html (для главной страницы как ресурса)
-  return `${name}.html`;
+  // Для ресурсов - извлекаем расширение из пути
+  const pathParts = url.pathname.split('/').pop().split('.');
+  const hasExtension = pathParts.length > 1;
+  const extension = hasExtension ? pathParts.pop() : 'html';
+
+  // Удаляем существующее расширение из имени, если есть
+  name = name.replace(new RegExp(`\\.${extension}$`), '');
+
+  return `${name}.${extension}`;
 };
 
 const downloadResource = (baseUrl, resourceUrl, outputDir) => {
