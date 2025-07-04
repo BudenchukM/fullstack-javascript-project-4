@@ -42,7 +42,7 @@ const generateFileName = (urlString, isResource = false) => {
   const url = new URL(urlString)
   let name = url.hostname.replace(/\./g, '-')
     + url.pathname.replace(/\//g, '-')
-        .replace(/-+$/, '')
+      .replace(/-+$/, '')
 
   // Для основной страницы всегда .html
   if (!isResource) {
@@ -125,11 +125,11 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       return resolve(prettier.format(html, prettierOptions))
     }
 
-    const tasks = resources.map(resource => {
+    const tasks = resources.map((resource) => {
       if (resource.isMainPage) {
         return {
           title: `Downloading main page as resource`,
-          task: () => downloadResource(baseUrl, baseUrl, resourcesDir)
+          task: () => downloadResource(baseUrl, baseUrl, resourcesDir),
         }
       }
       return {
@@ -140,13 +140,13 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
               const newPath = `${path.basename(resourcesDir)}/${filename}`
               resource.element.attr(resource.attr, newPath)
             }
-          })
+          }),
       }
     })
 
     new Listr(tasks, {
       concurrent: true,
-      exitOnError: false
+      exitOnError: false,
     })
       .run()
       .then(() => {
@@ -167,7 +167,7 @@ export default function downloadPage(url, outputDir = process.cwd()) {
 
     fs.access(outputDir, fs.constants.W_OK)
       .then(() => axios.get(url))
-      .then(response => {
+      .then((response) => {
         const pageName = generateFileName(url)
         console.log(`Generated page name: ${pageName}`)
         const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`)
@@ -180,7 +180,7 @@ export default function downloadPage(url, outputDir = process.cwd()) {
             console.log('Directory created successfully')
             return processHtmlWithProgress(response.data, url, resourcesDir)
           })
-          .then(processedHtml => {
+          .then((processedHtml) => {
             console.log('Saving main HTML file')
             return fs.writeFile(htmlFilePath, processedHtml)
           })
@@ -191,16 +191,19 @@ export default function downloadPage(url, outputDir = process.cwd()) {
           })
       })
       .then(resolve)
-      .catch(error => {
+      .catch((error) => {
         console.error('Error during page download:', error)
-        let message;
+        let message
         if (error.code === 'ENOTFOUND') {
           message = `Network error: could not resolve host for ${url}`
-        } else if (error.code === 'EACCES') {
+        }
+        else if (error.code === 'EACCES') {
           message = `Output directory is not writable: ${outputDir}`
-        } else if (error.response) {
+        }
+        else if (error.response) {
           message = `Request failed with status ${error.response.status}`
-        } else {
+        }
+        else {
           message = error.message
         }
         log(`Error occurred: ${message}`)
