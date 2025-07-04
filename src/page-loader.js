@@ -76,8 +76,12 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
     .then(response => {
       const filename = generateFileName(absoluteUrl, true);
       const filepath = path.join(outputDir, filename);
+
+       const data = Buffer.isBuffer(response.data) 
+        ? response.data 
+        : Buffer.from(response.data);
       
-      return fs.writeFile(filepath, response.data)
+      return fs.writeFile(filepath, data)
         .then(() => {
           log(`Resource saved: ${filepath}`);
           return { success: true, filename };
@@ -138,8 +142,8 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
     })
       .run()
       .then(() => {
-        const formattedHtml = prettier.format($.html(), prettierOptions);
-        resolve(formattedHtml);
+        const htmlContent = $.html();
+        resolve(htmlContent);
       })
       .catch(() => {
         resolve($.html());
@@ -152,33 +156,22 @@ export default function downloadPage(url, outputDir = process.cwd()) {
     log(`Starting download: ${url}`);
 
     fs.access(outputDir, fs.constants.W_OK)
-      .then(() => axios.get(url, {
-        validateStatus: (status) => status === 200
-      }))
+      .then(() => axios.get(url))
       .then(response => {
-        const pageName = generateFileName(url, false).replace('.html', '');
+        const pageName = generateFileName(url);
         const resourcesDir = path.join(outputDir, `${pageName}_files`);
 
         return fs.mkdir(resourcesDir, { recursive: true })
-          .then(() => ({ response, pageName, resourcesDir }));
-      })
-      .then(({ response, pageName, resourcesDir }) => {
-        return processHtmlWithProgress(response.data, url, resourcesDir)
+          .then(() => processHtmlWithProgress(response.data, url, resourcesDir))
           .then(processedHtml => {
-            const mainHtmlPath = path.join(outputDir, `${pageName}.html`);
-            const formattedHtml = prettier.format(processedHtml, prettierOptions);
-            
-            return fs.writeFile(mainHtmlPath, formattedHtml)
-              .then(() => mainHtmlPath);
-          });
-      })
-      .then(htmlPath => {
-        log(`Download completed: ${htmlPath}`);
-        resolve(htmlPath);
+            const filePath = path.join(outputDir, `${pageName}.html`);
+            // Убедимся, что передаем строку
+            return fs.writeFile(filePath, processedHtml.toString());
+          })
+          .then(() => resolve(path.join(outputDir, `${pageName}.html`)));
       })
       .catch(error => {
         let message;
-        
         if (error.code === 'ENOTFOUND') {
           message = `Network error: could not resolve host for ${url}`;
         } else if (error.code === 'EACCES') {
@@ -188,7 +181,6 @@ export default function downloadPage(url, outputDir = process.cwd()) {
         } else {
           message = error.message;
         }
-
         reject(new PageLoaderError(message, error.code));
       });
   });
