@@ -39,14 +39,22 @@ const isLocalResource = (baseUrl, resourceUrl) => {
 
 const generateFileName = (urlString, isResource = false) => {
   const url = new URL(urlString);
-  // Заменяем точки на дефисы в hostname и убираем .html в конце пути
   let name = url.hostname.replace(/\./g, '-') + 
              url.pathname.replace(/\//g, '-')
-                         .replace(/\.html$/, '')
                          .replace(/-+$/, '');
+
+  // Для HTML-ресурсов сохраняем расширение .html
+  if (isResource && url.pathname.endsWith('.html')) {
+    return `${name}.html`;
+  }
   
-  // Добавляем расширение только если это не ресурс
-  return isResource ? name : `${name}.html`;
+  // Для остальных ресурсов не добавляем расширение
+  if (isResource) {
+    return name;
+  }
+  
+  // Для основной страницы добавляем .html, если его еще нет
+  return name.endsWith('.html') ? name : `${name}.html`;
 };
 
 const downloadResource = (baseUrl, resourceUrl, outputDir) => {
@@ -61,7 +69,7 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
       const filename = generateFileName(absoluteUrl, true);
       const filepath = path.join(outputDir, filename);
 
-       const data = Buffer.isBuffer(response.data) 
+      const data = Buffer.isBuffer(response.data) 
         ? response.data 
         : Buffer.from(response.data);
       
@@ -90,6 +98,7 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       { selector: 'img[src]', attr: 'src' },
       { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
       { selector: 'script[src]', attr: 'src' },
+      { selector: 'a[href$=".html"]', attr: 'href' } // Добавляем обработку HTML-ссылок
     ];
 
     tagsToProcess.forEach(({ selector, attr }) => {
@@ -106,7 +115,7 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
     });
 
     if (resources.length === 0) {
-      return resolve(html);
+      return resolve(prettier.format(html, prettierOptions));
     }
 
     const tasks = resources.map(resource => ({
@@ -114,8 +123,8 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       task: () => downloadResource(baseUrl, resource.url, resourcesDir)
         .then(({ success, filename }) => {
           if (success) {
-            resource.element.attr(resource.attr, 
-              `${path.basename(resourcesDir)}/${filename}`);
+            const newPath = `${path.basename(resourcesDir)}/${filename}`;
+            resource.element.attr(resource.attr, newPath);
           }
         })
     }));
@@ -126,11 +135,12 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
     })
       .run()
       .then(() => {
-        const htmlContent = $.html();
-        resolve(htmlContent);
+        const formattedHtml = prettier.format($.html(), prettierOptions);
+        resolve(formattedHtml);
       })
       .catch(() => {
-        resolve($.html());
+        const formattedHtml = prettier.format($.html(), prettierOptions);
+        resolve(formattedHtml);
       });
   });
 };
