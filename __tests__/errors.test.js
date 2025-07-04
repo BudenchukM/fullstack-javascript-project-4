@@ -7,17 +7,17 @@ describe('Error handling with promises', () => {
   let tempDir
 
   beforeAll(async () => {
-    tempDir = await fs.mkdtemp('/tmp/page-loader-');
+    tempDir = await fs.mkdtemp('/tmp/page-loader-')
   })
 
   afterAll(async () => {
-    await fs.rm(tempDir, { recursive: true, force: true });
+    await fs.rm(tempDir, { recursive: true, force: true })
   })
 
   test('should reject on network errors', async () => {
     await expect(downloadPage('https://nonexistent-site.test'))
       .rejects
-      .toThrow(/could not resolve host/);
+      .toThrow(/could not resolve host/)
   })
 
   test('should reject on 404 responses', async () => {

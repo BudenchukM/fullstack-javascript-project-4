@@ -32,40 +32,40 @@ const isLocalResource = (baseUrl, resourceUrl) => {
     const base = new URL(baseUrl)
     const resource = new URL(resourceUrl, base)
     return resource.hostname === base.hostname
-  } 
+  }
   catch {
     return false
   }
 }
 
 const generateFileName = (urlString, isResource = false) => {
-  const url = new URL(urlString);
-  let name = url.hostname.replace(/\./g, '-') + 
-             url.pathname.replace(/\//g, '-')
-                         .replace(/-+$/, '');
-  
+  const url = new URL(urlString)
+  let name = url.hostname.replace(/\./g, '-')
+      + url.pathname.replace(/\//g, '-')
+                    .replace(/-+$/, '')
+
   // Для основной страницы всегда .html
   if (!isResource) {
-    return name.endsWith('.html') ? name : `${name}.html`;
+    return name.endsWith('.html') ? name : `${name}.html`
   }
 
   // Для ресурсов - извлекаем расширение из пути
-  const pathParts = url.pathname.split('/').pop().split('.');
-  const hasExtension = pathParts.length > 1;
-  const extension = hasExtension ? pathParts.pop() : 'html';
+  const pathParts = url.pathname.split('/').pop().split('.')
+  const hasExtension = pathParts.length > 1
+  const extension = hasExtension ? pathParts.pop() : 'html'
 
   // Удаляем существующее расширение из имени, если есть
-  name = name.replace(new RegExp(`\\.${extension}$`), '');
+  name = name.replace(new RegExp(`\\.${extension}$`), '')
 
-  return `${name}.${extension}`;
-};
+  return `${name}.${extension}`
+}
 
 const downloadResource = (baseUrl, resourceUrl, outputDir) => {
-  const absoluteUrl = new URL(resourceUrl, baseUrl).toString();
-  log(`Starting download: ${absoluteUrl}`);
+  const absoluteUrl = new URL(resourceUrl, baseUrl).toString()
+  log(`Starting download: ${absoluteUrl}`)
 
-  const filename = generateFileName(absoluteUrl, true);
-  const filepath = path.join(outputDir, filename);
+  const filename = generateFileName(absoluteUrl, true)
+  const filepath = path.join(outputDir, filename)
 
   return axios.get(absoluteUrl, {
     responseType: 'arraybuffer',
@@ -78,27 +78,27 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
       
       return fs.writeFile(filepath, data)
         .then(() => {
-          log(`Resource saved: ${filepath}`);
-          return { success: true, filename };
-        });
+          log(`Resource saved: ${filepath}`)
+          return { success: true, filename }
+        })
     })
     .catch(error => {
-      log(`Download failed: ${resourceUrl}`, error.message);
-      return { success: false, error: error.message };
-    });
-};
+      log(`Download failed: ${resourceUrl}`, error.message)
+      return { success: false, error: error.message }
+    })
+}
 
 const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
   return new Promise((resolve) => {
-    const $ = cheerio.load(html);
+    const $ = cheerio.load(html)
     
-    const resources = [];
+    const resources = []
     const tagsToProcess = [
       { selector: 'img[src]', attr: 'src' },
       { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
       { selector: 'script[src]', attr: 'src' },
       { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' }
-    ];
+    ]
 
     // Добавляем главную страницу как ресурс
     resources.push({
@@ -106,9 +106,9 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
       element: null,
       attr: null,
       isMainPage: true
-    });
+    })
 
-   
+
 
     tagsToProcess.forEach(({ selector, attr }) => {
       $(selector).each((i, element) => {
@@ -118,13 +118,13 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
             url: resourceUrl,
             element: $(element),
             attr
-          });
+          })
         }
-      });
-    });
+      })
+    })
 
     if (resources.length === 0) {
-      return resolve(prettier.format(html, prettierOptions));
+      return resolve(prettier.format(html, prettierOptions))
     }
 
     const tasks = resources.map(resource => {
@@ -132,81 +132,81 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
         return {
           title: `Downloading main page as resource`,
           task: () => downloadResource(baseUrl, baseUrl, resourcesDir)
-        };
+        }
       }
       return {
         title: `Downloading ${resource.url}`,
         task: () => downloadResource(baseUrl, resource.url, resourcesDir)
           .then(({ success, filename }) => {
             if (success) {
-              const newPath = `${path.basename(resourcesDir)}/${filename}`;
-              resource.element.attr(resource.attr, newPath);
+              const newPath = `${path.basename(resourcesDir)}/${filename}`
+              resource.element.attr(resource.attr, newPath)
             }
           })
-      };
-    });
+      }
+    })
 
-    new Listr(tasks, { 
+    new Listr(tasks, {
       concurrent: true,
-      exitOnError: false 
+      exitOnError: false
     })
       .run()
       .then(() => {
-        const formattedHtml = prettier.format($.html(), prettierOptions);
-        resolve(formattedHtml);
+        const formattedHtml = prettier.format($.html(), prettierOptions)
+        resolve(formattedHtml)
       })
       .catch(() => {
-        const formattedHtml = prettier.format($.html(), prettierOptions);
-        resolve(formattedHtml);
-      });
-  });
-};
+        const formattedHtml = prettier.format($.html(), prettierOptions)
+        resolve(formattedHtml)
+      })
+  })
+}
 
 export default function downloadPage(url, outputDir = process.cwd()) {
   return new Promise((resolve, reject) => {
-    log(`Starting download: ${url}`);
-    console.log(`Starting page download: ${url}`);
+    log(`Starting download: ${url}`)
+    console.log(`Starting page download: ${url}`)
 
     fs.access(outputDir, fs.constants.W_OK)
       .then(() => axios.get(url))
       .then(response => {
-        const pageName = generateFileName(url);
-        console.log(`Generated page name: ${pageName}`);
-        const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`);
-        console.log(`Resources directory: ${resourcesDir}`);
-        const htmlFilePath = path.join(outputDir, pageName);
-        console.log(`HTML file path: ${htmlFilePath}`);
+        const pageName = generateFileName(url)
+        console.log(`Generated page name: ${pageName}`)
+        const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`)
+        console.log(`Resources directory: ${resourcesDir}`)
+        const htmlFilePath = path.join(outputDir, pageName)
+        console.log(`HTML file path: ${htmlFilePath}`)
 
         return fs.mkdir(resourcesDir, { recursive: true })
           .then(() => {
-            console.log('Directory created successfully');
-            return processHtmlWithProgress(response.data, url, resourcesDir);
+            console.log('Directory created successfully')
+            return processHtmlWithProgress(response.data, url, resourcesDir)
           })
           .then(processedHtml => {
-            console.log('Saving main HTML file');
-            return fs.writeFile(htmlFilePath, processedHtml);
+            console.log('Saving main HTML file')
+            return fs.writeFile(htmlFilePath, processedHtml)
           })
           .then(() => {
-            console.log(`Page successfully saved to: ${htmlFilePath}`);
-            log(`Page saved: ${htmlFilePath}`);
-            return htmlFilePath;
-          });
+            console.log(`Page successfully saved to: ${htmlFilePath}`)
+            log(`Page saved: ${htmlFilePath}`)
+            return htmlFilePath
+          })
       })
       .then(resolve)
       .catch(error => {
-        console.error('Error during page download:', error);
+        console.error('Error during page download:', error)
         let message;
         if (error.code === 'ENOTFOUND') {
-          message = `Network error: could not resolve host for ${url}`;
+          message = `Network error: could not resolve host for ${url}`
         } else if (error.code === 'EACCES') {
-          message = `Output directory is not writable: ${outputDir}`;
+          message = `Output directory is not writable: ${outputDir}`
         } else if (error.response) {
-          message = `Request failed with status ${error.response.status}`;
+          message = `Request failed with status ${error.response.status}`
         } else {
-          message = error.message;
+          message = error.message
         }
-        log(`Error occurred: ${message}`);
-        reject(new PageLoaderError(message, error.code));
-      });
-  });
+        log(`Error occurred: ${message}`)
+        reject(new PageLoaderError(message, error.code))
+      })
+  })
 }

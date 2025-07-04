@@ -29,7 +29,7 @@ describe('page-loader (promise version)', () => {
     nock(baseUrl)
       .persist()
       .get('/courses')
-      .reply(200, originalHtml);
+      .reply(200, originalHtml)
 
     nock(baseUrl)
       .get('/assets/application.css')
@@ -73,7 +73,7 @@ describe('page-loader (promise version)', () => {
     expect(files).toEqual(expect.arrayContaining([
       'ru-hexlet-io-assets-application.css',
       'ru-hexlet-io-assets-professions-nodejs.png',
-      'ru-hexlet-io-packs-js-runtime.js'
+      'ru-hexlet-io-packs-js-runtime.js',
     ]))
   })
 })

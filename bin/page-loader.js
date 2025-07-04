@@ -20,8 +20,8 @@ program
 
     downloadPage(url, options.output)
       .then((filepath) => {
-        const dirName = path.dirname(filepath);
-        const fileName = path.basename(filepath);
+        const dirName = path.dirname(filepath)
+        const fileName = path.basename(filepath)
         const resourcesDir = path.join(dirName, fileName.replace('.html', '_files'))
 
         console.log(chalk.green(`\nPage successfully saved to: ${chalk.bold(filepath)}`))
@@ -35,7 +35,7 @@ program
       })
   })
 
-program.parse(process.argv);
+program.parse(process.argv)
 
 // Обработка ошибок командной строки
 process.on('unhandledRejection', (error) => {
