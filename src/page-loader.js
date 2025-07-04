@@ -39,30 +39,12 @@ const isLocalResource = (baseUrl, resourceUrl) => {
 
 const generateFileName = (urlString, isResource = false) => {
   const url = new URL(urlString);
-  let nameParts = [url.hostname];
-  const pathParts = url.pathname.split('/').filter(Boolean);
-
-  if (isResource && pathParts.length > 0) {
-    if (pathParts.length > 1) {
-      nameParts = nameParts.concat(pathParts.slice(0, -1));
-    }
-    const fileName = pathParts[pathParts.length - 1];
-    nameParts.push(fileName.replace(path.extname(fileName), ''));
-  } else {
-    nameParts = nameParts.concat(pathParts);
-  }
-
-  let name = nameParts.join('-')
-    .replace(/[^a-zA-Z0-9]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-
-  if (isResource) {
-    const ext = path.extname(url.pathname);
-    return ext ? `${name}${ext}` : name;
-  }
+  let name = url.hostname + url.pathname.replace(/\//g, '-').replace(/\.html$/, '');
   
-  return `${name}.html`;
+  // Убираем лишние дефисы в конце
+  name = name.replace(/-+$/, '');
+  
+  return isResource ? name : `${name}.html`;
 };
 
 const downloadResource = (baseUrl, resourceUrl, outputDir) => {
@@ -165,10 +147,7 @@ export default function downloadPage(url, outputDir = process.cwd()) {
         return fs.mkdir(resourcesDir, { recursive: true })
           .then(() => processHtmlWithProgress(response.data, url, resourcesDir))
           .then(processedHtml => {
-            // Убедимся, что директория существует перед записью
-            return fs.access(outputDir)
-              .catch(() => fs.mkdir(outputDir, { recursive: true }))
-              .then(() => fs.writeFile(htmlFilePath, processedHtml));
+            return fs.writeFile(htmlFilePath, processedHtml);
           })
           .then(() => {
             log(`Page saved: ${htmlFilePath}`);
