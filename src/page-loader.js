@@ -185,23 +185,23 @@ export default function downloadPage(url, outputDir = process.cwd()) {
       })
       .then(resolve)
       .catch((error) => {
-        let message;
+        let message
         if (error.code === 'ENOTFOUND') {
-          message = `DNS error: host not found (${url})`;
+          message = `DNS error: host not found (${url})`
         }
         else if (error.code === 'ECONNREFUSED') {
-          message = `Connection refused (${url})`;
+          message = `Connection refused (${url})`
         }
         else if (error.response) {
-          message = `HTTP error ${error.response.status}`;
+          message = `HTTP error ${error.response.status}`
         }
         else if (error.code === 'ETIMEDOUT') {
-          message = `Request timeout (${url})`;
+          message = `Request timeout (${url})`
         }
         else {
-          message = error.message || 'Unknown error';
+          message = error.message || 'Unknown error'
         }
-        reject(new PageLoaderError(message, error.code));
+        reject(new PageLoaderError(message, error.code))
       })
   })
 }
