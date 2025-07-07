@@ -177,10 +177,10 @@ export default function downloadPage(url, outputDir = process.cwd()) {
 
         return fs.mkdir(resourcesDir, { recursive: true })
           .then(() => processHtmlWithProgress(response.data, url, resourcesDir))
-          .then((processedHtml) => fs.writeFile(htmlFilePath, processedHtml))
+          .then(processedHtml => fs.writeFile(htmlFilePath, processedHtml))
           .then(() => ({
             htmlPath: htmlFilePath,
-            resourcesDir: resourcesDir
+            resourcesDir: resourcesDir,
           }))
       })
       .then(resolve)
@@ -189,11 +189,14 @@ export default function downloadPage(url, outputDir = process.cwd()) {
         let message
         if (error.code === 'ENOTFOUND') {
           message = `Network error: could not resolve host for ${url}`
-        } else if (error.code === 'EACCES') {
+        }
+        else if (error.code === 'EACCES') {
           message = `Output directory is not writable: ${outputDir}`
-        } else if (error.response) {
+        }
+        else if (error.response) {
           message = `Request failed with status ${error.response.status}`
-        } else {
+        }
+        else {
           message = error.message
         }
         log(`Error occurred: ${message}`)
