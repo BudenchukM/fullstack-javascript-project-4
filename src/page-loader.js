@@ -203,5 +203,4 @@ export default function downloadPage(url, outputDir = process.cwd()) {
         }
         reject(new PageLoaderError(message, error.code))
       })
-  })
-}
+  }
