@@ -166,13 +166,13 @@ export default function downloadPage(url, outputDir = process.cwd()) {
 
   return fs.access(outputDir, fs.constants.W_OK)
     .then(() => axios.get(url))
-    .then(response => {
+    .then((response) => {
       const pageName = generateFileName(url)
       console.log(`Generated page name: ${pageName}`)
-      
+
       const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`)
       console.log(`Resources directory: ${resourcesDir}`)
-      
+
       const htmlFilePath = path.join(outputDir, pageName)
       console.log(`HTML file path: ${htmlFilePath}`)
 
@@ -181,26 +181,27 @@ export default function downloadPage(url, outputDir = process.cwd()) {
         .then(processedHtml => fs.writeFile(htmlFilePath, processedHtml))
         .then(() => ({
           htmlPath: htmlFilePath,
-          resourcesDir: resourcesDir
+          resourcesDir: resourcesDir,
         }))
     })
-      .catch((error) => {
-        let message
-        if (error.code === 'ENOTFOUND') {
-          message = `DNS error: host not found (${url})`
-        }
-        else if (error.code === 'ECONNREFUSED') {
-          message = `Connection refused (${url})`
-        }
-        else if (error.response) {
-          message = `HTTP error ${error.response.status}`
-        }
-        else if (error.code === 'ETIMEDOUT') {
-          message = `Request timeout (${url})`
-        }
-        else {
-          message = error.message || 'Unknown error'
-        }
-        reject(new PageLoaderError(message, error.code))
-      })
-  }
+    .catch((error) => {
+      let message
+      if (error.code === 'ENOTFOUND') {
+        message = `DNS error: host not found (${url})`
+      }
+      else if (error.code === 'ECONNREFUSED') {
+        message = `Connection refused (${url})`
+      }
+      else if (error.response) {
+        message = `HTTP error ${error.response.status}`
+      }
+      else if (error.code === 'ETIMEDOUT') {
+        message = `Request timeout (${url})`
+      }
+      else {
+        message = error.message || 'Unknown error'
+      }
+      log(`Error occurred: ${message}`)
+      throw new PageLoaderError(message, error.code)
+    })
+}
