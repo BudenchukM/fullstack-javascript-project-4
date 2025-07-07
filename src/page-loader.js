@@ -185,22 +185,23 @@ export default function downloadPage(url, outputDir = process.cwd()) {
       })
       .then(resolve)
       .catch((error) => {
-        console.error('Error during page download:', error)
-        let message
+        let message;
         if (error.code === 'ENOTFOUND') {
-          message = `Network error: could not resolve host for ${url}`
+          message = `DNS error: host not found (${url})`;
         }
-        else if (error.code === 'EACCES') {
-          message = `Output directory is not writable: ${outputDir}`
+        else if (error.code === 'ECONNREFUSED') {
+          message = `Connection refused (${url})`;
         }
         else if (error.response) {
-          message = `Request failed with status ${error.response.status}`
+          message = `HTTP error ${error.response.status}`;
+        }
+        else if (error.code === 'ETIMEDOUT') {
+          message = `Request timeout (${url})`;
         }
         else {
-          message = error.message
+          message = error.message || 'Unknown error';
         }
-        log(`Error occurred: ${message}`)
-        reject(new PageLoaderError(message, error.code))
+        reject(new PageLoaderError(message, error.code));
       })
   })
 }
