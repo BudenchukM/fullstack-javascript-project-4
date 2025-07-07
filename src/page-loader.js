@@ -161,29 +161,29 @@ const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
 }
 
 export default function downloadPage(url, outputDir = process.cwd()) {
-  return new Promise((resolve, reject) => {
-    log(`Starting download: ${url}`)
-    console.log(`Starting page download: ${url}`)
+  log(`Starting download: ${url}`)
+  console.log(`Starting page download: ${url}`)
 
-    fs.access(outputDir, fs.constants.W_OK)
-      .then(() => axios.get(url))
-      .then((response) => {
-        const pageName = generateFileName(url)
-        console.log(`Generated page name: ${pageName}`)
-        const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`)
-        console.log(`Resources directory: ${resourcesDir}`)
-        const htmlFilePath = path.join(outputDir, pageName)
-        console.log(`HTML file path: ${htmlFilePath}`)
+  return fs.access(outputDir, fs.constants.W_OK)
+    .then(() => axios.get(url))
+    .then(response => {
+      const pageName = generateFileName(url)
+      console.log(`Generated page name: ${pageName}`)
+      
+      const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`)
+      console.log(`Resources directory: ${resourcesDir}`)
+      
+      const htmlFilePath = path.join(outputDir, pageName)
+      console.log(`HTML file path: ${htmlFilePath}`)
 
-        return fs.mkdir(resourcesDir, { recursive: true })
-          .then(() => processHtmlWithProgress(response.data, url, resourcesDir))
-          .then(processedHtml => fs.writeFile(htmlFilePath, processedHtml))
-          .then(() => ({
-            htmlPath: htmlFilePath,
-            resourcesDir: resourcesDir,
-          }))
-      })
-      .then(resolve)
+      return fs.mkdir(resourcesDir, { recursive: true })
+        .then(() => processHtmlWithProgress(response.data, url, resourcesDir))
+        .then(processedHtml => fs.writeFile(htmlFilePath, processedHtml))
+        .then(() => ({
+          htmlPath: htmlFilePath,
+          resourcesDir: resourcesDir
+        }))
+    })
       .catch((error) => {
         let message
         if (error.code === 'ENOTFOUND') {
