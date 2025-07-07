@@ -18,15 +18,10 @@ program
   .action((url, options) => {
     console.log(chalk.blue(`Downloading ${url}...`))
 
-    downloadPage(url, options.output)
-      .then((filepath) => {
-        const dirName = path.dirname(filepath)
-        const fileName = path.basename(filepath)
-        const resourcesDir = path.join(dirName, fileName.replace('.html', '_files'))
-
-        console.log(chalk.green(`\nPage successfully saved to: ${chalk.bold(filepath)}`))
+     downloadPage(url, options.output)
+      .then(({ htmlPath, resourcesDir }) => {
+        console.log(chalk.green(`\nPage successfully saved to: ${chalk.bold(htmlPath)}`))
         console.log(chalk.green(`Resources saved in: ${chalk.bold(resourcesDir)}`))
-
         process.exit(0)
       })
       .catch((error) => {
