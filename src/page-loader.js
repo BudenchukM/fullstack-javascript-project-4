@@ -49,26 +49,19 @@ const isLocalResource = (baseUrl, resourceUrl) => {
   }
 }
 
-const generateFileName = (urlString, isResource = false) => {
+const generateFileName = (urlString) => {
   const url = new URL(urlString)
-  let name = url.hostname.replace(/\./g, '-')
-    + url.pathname.replace(/\//g, '-')
-      .replace(/-+$/, '')
+  const parsedPath = path.parse(url.pathname)
 
-  // Для основной страницы всегда .html
-  if (!isResource) {
-    return name.endsWith('.html') ? name : `${name}.html`
-  }
+  let name = url.hostname.replace(/\./g, '-') + 
+             parsedPath.dir.replace(/\//g, '-').replace(/-+$/, '') +
+             (parsedPath.name ? '-' + parsedPath.name : '')
 
-  // Для ресурсов - извлекаем расширение из пути
-  const pathParts = url.pathname.split('/').pop().split('.')
-  const hasExtension = pathParts.length > 1
-  const extension = hasExtension ? pathParts.pop() : 'html'
+  name = name.replace(/-+/g, '-').replace(/^-|-$/g, '')
 
-  // Удаляем существующее расширение из имени, если есть
-  name = name.replace(new RegExp(`\\.${extension}$`), '')
+  const extension = parsedPath.ext || '.html'
 
-  return `${name}.${extension}`
+  return name.endsWith(extension) ? name : `${name}${extension}`
 }
 
 const downloadResource = (absoluteUrl, outputPath) => {
@@ -97,7 +90,7 @@ const downloadResource = (absoluteUrl, outputPath) => {
 
 const downloadResourceWithGeneration = (baseUrl, resourceUrl, outputDir) => {
   const absoluteUrl = new URL(resourceUrl, baseUrl).toString()
-  const filename = generateFileName(absoluteUrl, true)
+  const filename = generateFileName(absoluteUrl)
   const outputPath = path.join(outputDir, filename)
 
   return downloadResource(absoluteUrl, outputPath)
@@ -189,7 +182,6 @@ export default function downloadPage(url, outputDir = process.cwd()) {
           })
             .run()
             .then(() => {
-              // Форматируем только после выполнения всех задач
               return prettier.format($.html(), prettierOptions)
             })
         })
