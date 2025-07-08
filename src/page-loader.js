@@ -107,7 +107,7 @@ const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
 
   tagsToProcess.forEach(({ selector, attr }) => {
     $(selector).each((i, element) => {
-      const resourceUrl = $(element).attr(attr);
+      const resourceUrl = $(element).attr(attr)
       if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
         resources.push({
           url: resourceUrl,
@@ -138,7 +138,7 @@ const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
         .then(({ success, filename }) => {
           if (success) {
             const newPath = `${path.basename(resourcesDir)}/${filename}`
-            resource.element.attr(resource.attr, newPath);
+            resource.element.attr(resource.attr, newPath)
           }
         }),
     }
@@ -184,7 +184,7 @@ export default function downloadPage(url, outputDir = process.cwd()) {
               return prettier.format($.html(), prettierOptions)
             })
         })
-        .then((processedHtml) => fs.writeFile(htmlFilePath, processedHtml))
+        .then(processedHtml => fs.writeFile(htmlFilePath, processedHtml))
         .then(() => ({
           htmlPath: htmlFilePath,
           resourcesDir: resourcesDir,
