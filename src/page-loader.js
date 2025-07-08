@@ -141,7 +141,7 @@ const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
         task: () => downloadResourceWithGeneration(baseUrl, baseUrl, resourcesDir),
       }
     }
-    
+
     return {
       title: `Downloading ${resource.url}`,
       task: () => downloadResourceWithGeneration(baseUrl, resource.url, resourcesDir)
