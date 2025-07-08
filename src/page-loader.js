@@ -19,6 +19,17 @@ const prettierOptions = {
   singleAttributePerLine: false,
 }
 
+// Define resource tags to process as a constant object
+const RESOURCE_TAGS = {
+  images: { selector: 'img[src]', attr: 'src' },
+  stylesheets: { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
+  scripts: { selector: 'script[src]', attr: 'src' },
+  htmlLinks: { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' },
+}
+
+// Convert to array format for processing
+const tagsToProcess = Object.values(RESOURCE_TAGS)
+
 class PageLoaderError extends Error {
   constructor(message, code = 'UNKNOWN') {
     super(message)
@@ -91,12 +102,6 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
 const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
   const $ = cheerio.load(html)
   const resources = []
-  const tagsToProcess = [
-    { selector: 'img[src]', attr: 'src' },
-    { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
-    { selector: 'script[src]', attr: 'src' },
-    { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' },
-  ]
 
   resources.push({
     url: baseUrl,
@@ -105,6 +110,7 @@ const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
     isMainPage: true,
   })
 
+  // Use the predefined tagsToProcess array
   tagsToProcess.forEach(({ selector, attr }) => {
     $(selector).each((i, element) => {
       const resourceUrl = $(element).attr(attr)
