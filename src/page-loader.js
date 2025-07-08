@@ -71,12 +71,8 @@ const generateFileName = (urlString, isResource = false) => {
   return `${name}.${extension}`
 }
 
-const downloadResource = (baseUrl, resourceUrl, outputDir) => {
-  const absoluteUrl = new URL(resourceUrl, baseUrl).toString()
+const downloadResource = (absoluteUrl, outputPath) => {
   log(`Starting download: ${absoluteUrl}`)
-
-  const filename = generateFileName(absoluteUrl, true)
-  const filepath = path.join(outputDir, filename)
 
   return axios.get(absoluteUrl, {
     responseType: 'arraybuffer',
@@ -85,18 +81,26 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
     .then((response) => {
       const data = Buffer.isBuffer(response.data)
         ? response.data
-        : Buffer.from(response.data)
+        : Buffer.from(response.data);
 
-      return fs.writeFile(filepath, data)
+      return fs.writeFile(outputPath, data)
         .then(() => {
-          log(`Resource saved: ${filepath}`)
-          return { success: true, filename }
-        })
+          log(`Resource saved: ${outputPath}`)
+          return { success: true, filename: path.basename(outputPath) }
+        });
     })
     .catch((error) => {
-      log(`Download failed: ${resourceUrl}`, error.message)
+      log(`Download failed: ${absoluteUrl}`, error.message)
       return { success: false, error: error.message }
     })
+}
+
+const downloadResourceWithGeneration = (baseUrl, resourceUrl, outputDir) => {
+  const absoluteUrl = new URL(resourceUrl, baseUrl).toString()
+  const filename = generateFileName(absoluteUrl, true)
+  const outputPath = path.join(outputDir, filename)
+  
+  return downloadResource(absoluteUrl, outputPath)
 }
 
 const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
@@ -110,7 +114,6 @@ const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
     isMainPage: true,
   })
 
-  // Use the predefined tagsToProcess array
   tagsToProcess.forEach(({ selector, attr }) => {
     $(selector).each((i, element) => {
       const resourceUrl = $(element).attr(attr)
@@ -135,12 +138,12 @@ const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
     if (resource.isMainPage) {
       return {
         title: `Downloading main page as resource`,
-        task: () => downloadResource(baseUrl, baseUrl, resourcesDir),
+        task: () => downloadResourceWithGeneration(baseUrl, baseUrl, resourcesDir),
       }
     }
     return {
       title: `Downloading ${resource.url}`,
-      task: () => downloadResource(baseUrl, resource.url, resourcesDir)
+      task: () => downloadResourceWithGeneration(baseUrl, resource.url, resourcesDir)
         .then(({ success, filename }) => {
           if (success) {
             const newPath = `${path.basename(resourcesDir)}/${filename}`
