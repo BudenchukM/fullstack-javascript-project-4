@@ -88,75 +88,66 @@ const downloadResource = (baseUrl, resourceUrl, outputDir) => {
     })
 }
 
-const processHtmlWithProgress = (html, baseUrl, resourcesDir) => {
-  return new Promise((resolve) => {
-    const $ = cheerio.load(html)
+const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
+  const $ = cheerio.load(html)
+  const resources = []
+  const tagsToProcess = [
+    { selector: 'img[src]', attr: 'src' },
+    { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
+    { selector: 'script[src]', attr: 'src' },
+    { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' },
+  ]
 
-    const resources = []
-    const tagsToProcess = [
-      { selector: 'img[src]', attr: 'src' },
-      { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
-      { selector: 'script[src]', attr: 'src' },
-      { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' },
-    ]
+  resources.push({
+    url: baseUrl,
+    element: null,
+    attr: null,
+    isMainPage: true,
+  })
 
-    // Добавляем главную страницу как ресурс
-    resources.push({
-      url: baseUrl,
-      element: null,
-      attr: null,
-      isMainPage: true,
-    })
-
-    tagsToProcess.forEach(({ selector, attr }) => {
-      $(selector).each((i, element) => {
-        const resourceUrl = $(element).attr(attr)
-        if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
-          resources.push({
-            url: resourceUrl,
-            element: $(element),
-            attr,
-          })
-        }
-      })
-    })
-
-    if (resources.length === 0) {
-      return resolve(prettier.format(html, prettierOptions))
-    }
-
-    const tasks = resources.map((resource) => {
-      if (resource.isMainPage) {
-        return {
-          title: `Downloading main page as resource`,
-          task: () => downloadResource(baseUrl, baseUrl, resourcesDir),
-        }
+  tagsToProcess.forEach(({ selector, attr }) => {
+    $(selector).each((i, element) => {
+      const resourceUrl = $(element).attr(attr);
+      if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
+        resources.push({
+          url: resourceUrl,
+          element: $(element),
+          attr,
+        })
       }
+    })
+  })
+
+  if (resources.length === 0) {
+    return Promise.resolve({
+      html: prettier.format(html, prettierOptions),
+      tasks: [],
+    })
+  }
+
+  const tasks = resources.map((resource) => {
+    if (resource.isMainPage) {
       return {
-        title: `Downloading ${resource.url}`,
-        task: () => downloadResource(baseUrl, resource.url, resourcesDir)
-          .then(({ success, filename }) => {
-            if (success) {
-              const newPath = `${path.basename(resourcesDir)}/${filename}`
-              resource.element.attr(resource.attr, newPath)
-            }
-          }),
+        title: `Downloading main page as resource`,
+        task: () => downloadResource(baseUrl, baseUrl, resourcesDir),
       }
-    })
+    }
+    return {
+      title: `Downloading ${resource.url}`,
+      task: () => downloadResource(baseUrl, resource.url, resourcesDir)
+        .then(({ success, filename }) => {
+          if (success) {
+            const newPath = `${path.basename(resourcesDir)}/${filename}`
+            resource.element.attr(resource.attr, newPath);
+          }
+        }),
+    }
+  })
 
-    new Listr(tasks, {
-      concurrent: true,
-      exitOnError: false,
-    })
-      .run()
-      .then(() => {
-        const formattedHtml = prettier.format($.html(), prettierOptions)
-        resolve(formattedHtml)
-      })
-      .catch(() => {
-        const formattedHtml = prettier.format($.html(), prettierOptions)
-        resolve(formattedHtml)
-      })
+  return Promise.resolve({
+    html: $.html(),
+    tasks,
+    $,
   })
 }
 
@@ -177,8 +168,23 @@ export default function downloadPage(url, outputDir = process.cwd()) {
       console.log(`HTML file path: ${htmlFilePath}`)
 
       return fs.mkdir(resourcesDir, { recursive: true })
-        .then(() => processHtmlWithProgress(response.data, url, resourcesDir))
-        .then(processedHtml => fs.writeFile(htmlFilePath, processedHtml))
+        .then(() => prepareDownloadTasks(response.data, url, resourcesDir))
+        .then(({ html, tasks, $ }) => {
+          if (tasks.length === 0) {
+            return html
+          }
+
+          return new Listr(tasks, {
+            concurrent: true,
+            exitOnError: false,
+          })
+            .run()
+            .then(() => {
+              // Форматируем только после выполнения всех задач
+              return prettier.format($.html(), prettierOptions)
+            })
+        })
+        .then((processedHtml) => fs.writeFile(htmlFilePath, processedHtml))
         .then(() => ({
           htmlPath: htmlFilePath,
           resourcesDir: resourcesDir,
