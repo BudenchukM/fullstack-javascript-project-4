@@ -27,6 +27,36 @@ class PageLoaderError extends Error {
   }
 }
 
+const isLocalResource = (baseUrl, resourceUrl) => {
+  try {
+    const base = new URL(baseUrl)
+    const resource = new URL(resourceUrl, base)
+    return resource.hostname === base.hostname
+  }
+  catch {
+    return false
+  }
+}
+
+const generateFileName = (urlString, isResource = false) => {
+  const url = new URL(urlString)
+  let name = url.hostname.replace(/\./g, '-')
+    + url.pathname.replace(/\//g, '-')
+      .replace(/-+$/, '')
+
+  if (!isResource) {
+    return name.endsWith('.html') ? name : `${name}.html`
+  }
+
+  const pathParts = url.pathname.split('/').pop().split('.')
+  const hasExtension = pathParts.length > 1
+  const extension = hasExtension ? pathParts.pop() : 'html'
+
+  name = name.replace(new RegExp(`\\.${extension}$`), '')
+
+  return `${name}.${extension}`
+}
+
 const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
   const $ = cheerio.load(html)
   const resources = []
