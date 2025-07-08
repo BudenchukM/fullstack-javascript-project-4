@@ -53,9 +53,9 @@ const generateFileName = (urlString) => {
   const url = new URL(urlString)
   const parsedPath = path.parse(url.pathname)
 
-  let name = url.hostname.replace(/\./g, '-') + 
-             parsedPath.dir.replace(/\//g, '-').replace(/-+$/, '') +
-             (parsedPath.name ? '-' + parsedPath.name : '')
+  let name = url.hostname.replace(/\./g, '-')
+            + parsedPath.dir.replace(/\//g, '-').replace(/-+$/, '')
+            + (parsedPath.name ? '-' + parsedPath.name : '')
 
   name = name.replace(/-+/g, '-').replace(/^-|-$/g, '')
 
