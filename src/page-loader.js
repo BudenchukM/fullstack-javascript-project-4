@@ -81,13 +81,13 @@ const downloadResource = (absoluteUrl, outputPath) => {
     .then((response) => {
       const data = Buffer.isBuffer(response.data)
         ? response.data
-        : Buffer.from(response.data);
+        : Buffer.from(response.data)
 
       return fs.writeFile(outputPath, data)
         .then(() => {
           log(`Resource saved: ${outputPath}`)
           return { success: true, filename: path.basename(outputPath) }
-        });
+        })
     })
     .catch((error) => {
       log(`Download failed: ${absoluteUrl}`, error.message)
@@ -99,7 +99,7 @@ const downloadResourceWithGeneration = (baseUrl, resourceUrl, outputDir) => {
   const absoluteUrl = new URL(resourceUrl, baseUrl).toString()
   const filename = generateFileName(absoluteUrl, true)
   const outputPath = path.join(outputDir, filename)
-  
+
   return downloadResource(absoluteUrl, outputPath)
 }
 
