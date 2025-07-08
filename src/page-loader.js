@@ -2,7 +2,7 @@ import axios from 'axios';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { URL } from 'url';
-import * as cheerio from 'cheerio';
+import cheerio from 'cheerio';
 import debug from 'debug';
 import Listr from 'listr';
 import prettier from 'prettier';
@@ -37,12 +37,11 @@ const isValidUrl = (url) => {
 };
 
 const isLocalResource = (baseUrl, resourceUrl) => {
-  if (!isValidUrl(baseUrl) return false;
+  if (!isValidUrl(baseUrl)) return false;
   if (!resourceUrl) return false;
   
   try {
     const base = new URL(baseUrl);
-    // Если URL относительный (начинается с /), считаем его локальным
     if (resourceUrl.startsWith('/')) return true;
     
     const resource = new URL(resourceUrl, base);
@@ -82,16 +81,16 @@ const downloadResource = (absoluteUrl, outputDir) => {
   const filepath = path.join(outputDir, filename);
 
   return axios.get(absoluteUrl, {
-  responseType: 'arraybuffer',
-  validateStatus: status => status === 200,
-})
-.then((response) => {
-  const data = Buffer.isBuffer(response.data) 
-    ? response.data 
-    : Buffer.from(response.data);
-  return fs.writeFile(filepath, data)
-    .then(() => filename);
-})
+    responseType: 'arraybuffer',
+    validateStatus: status => status === 200,
+  })
+    .then((response) => {
+      const data = Buffer.isBuffer(response.data) 
+        ? response.data 
+        : Buffer.from(response.data);
+      return fs.writeFile(filepath, data)
+        .then(() => filename);
+    })
     .catch((error) => {
       log(`Download failed: ${absoluteUrl}`, error.message);
       throw error;
@@ -117,11 +116,9 @@ const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
   tagsToProcess.forEach(({ selector, attr }) => {
     $(selector).each((i, element) => {
       const resourceUrl = $(element).attr(attr);
-      
       if (!resourceUrl) return;
       
       try {
-        // Обрабатываем относительные URL
         const absoluteUrl = resourceUrl.startsWith('http') 
           ? resourceUrl 
           : new URL(resourceUrl, baseUrl).toString();
@@ -149,10 +146,7 @@ const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
     tasks: resources.map(({ absoluteUrl, outputDir }) => ({
       title: `Downloading ${absoluteUrl}`,
       task: () => downloadResource(absoluteUrl, outputDir)
-        .catch((error) => {
-          log(`Failed to download ${absoluteUrl}:`, error.message);
-          // Продолжаем выполнение других задач даже при ошибке
-        })
+        .catch(() => {})
     }))
   };
 };
@@ -165,33 +159,37 @@ export default function downloadPage(url, outputDir = process.cwd()) {
   log(`Starting download: ${url}`);
 
   return fs.access(outputDir, fs.constants.W_OK)
-  .then(() => axios.get(url))
-  .then((response) => {
-    const pageName = generateFileName(url);
-    const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`);
-    const htmlFilePath = path.join(outputDir, pageName);
+    .then(() => axios.get(url))
+    .then((response) => {
+      const pageName = generateFileName(url);
+      const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`);
+      const htmlFilePath = path.join(outputDir, pageName);
 
-    return fs.mkdir(resourcesDir, { recursive: true })
-      .then(() => {
-        const { html, tasks } = prepareDownloadTasks(response.data, url, resourcesDir);
-        
-        const writeHtml = () => fs.writeFile(htmlFilePath, html);
-        
-        if (tasks.length === 0) {
-          return writeHtml();
-        }
+      return fs.mkdir(resourcesDir, { recursive: true })
+        .then(() => {
+          const { html, tasks } = prepareDownloadTasks(response.data, url, resourcesDir);
+          
+          const writeHtml = () => fs.writeFile(htmlFilePath, html);
+          
+          if (tasks.length === 0) {
+            return writeHtml()
+              .then(() => ({
+                htmlPath: htmlFilePath,
+                resourcesDir: resourcesDir
+              }));
+          }
 
-        return new Listr(tasks, {
-          concurrent: true,
-          exitOnError: false,
-        }).run()
-          .then(writeHtml);
-      })
-      .then(() => ({
-        htmlPath: htmlFilePath,
-        resourcesDir: resourcesDir
-      }));
-  })
+          return new Listr(tasks, {
+            concurrent: true,
+            exitOnError: false,
+          }).run()
+            .then(writeHtml)
+            .then(() => ({
+              htmlPath: htmlFilePath,
+              resourcesDir: resourcesDir
+            }));
+        });
+    })
     .catch((error) => {
       let message;
       let code = error.code || 'UNKNOWN';
