@@ -1,13 +1,13 @@
-import axios from 'axios';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { URL } from 'url';
-import * as cheerio from 'cheerio';
-import debug from 'debug';
-import Listr from 'listr';
-import prettier from 'prettier';
+import axios from 'axios'
+import { promises as fs } from 'fs'
+import path from 'path'
+import { URL } from 'url'
+import * as cheerio from 'cheerio'
+import debug from 'debug'
+import Listr from 'listr'
+import prettier from 'prettier'
 
-const log = debug('page-loader');
+const log = debug('page-loader')
 
 const prettierOptions = {
   parser: 'html',
@@ -17,65 +17,56 @@ const prettierOptions = {
   useTabs: false,
   bracketSameLine: false,
   singleAttributePerLine: false,
-};
+}
 
 class PageLoaderError extends Error {
   constructor(message, code = 'UNKNOWN') {
-    super(message);
-    this.name = 'PageLoaderError';
-    this.code = code;
+    super(message)
+    this.name = 'PageLoaderError'
+    this.code = code
   }
 }
 
-const isValidUrl = (url) => {
-  try {
-    new URL(url);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 const isLocalResource = (baseUrl, resourceUrl) => {
-  if (!isValidUrl(baseUrl) || !resourceUrl) return false;
-  
   try {
-    const base = new URL(baseUrl);
-    const resource = new URL(resourceUrl, base);
-    return resource.hostname === base.hostname;
-  } catch {
-    return false;
+    const base = new URL(baseUrl)
+    const resource = new URL(resourceUrl, base)
+    return resource.hostname === base.hostname
   }
-};
+  catch {
+    return false
+  }
+}
 
 const generateFileName = (urlString, isResource = false) => {
-  if (!isValidUrl(urlString)) {
-    throw new PageLoaderError(`Invalid URL: ${urlString}`, 'EINVALIDURL');
-  }
-
-  const url = new URL(urlString);
+  const url = new URL(urlString)
   let name = url.hostname.replace(/\./g, '-') + 
-    url.pathname.replace(/\//g, '-').replace(/-+$/, '');
+    url.pathname.replace(/\//g, '-').replace(/-+$/, '')
 
   if (!isResource) {
-    return name.endsWith('.html') ? name : `${name}.html`;
+    return name.endsWith('.html') ? name : `${name}.html`
   }
 
-  const pathParts = url.pathname.split('/').pop().split('.');
-  const hasExtension = pathParts.length > 1;
-  const extension = hasExtension ? pathParts.pop() : 'html';
+  const pathParts = url.pathname.split('/').pop().split('.')
+  const hasExtension = pathParts.length > 1
+  const extension = hasExtension ? pathParts.pop() : 'html'
 
-  name = name.replace(new RegExp(`\\.${extension}$`), '');
-  return `${name}.${extension}`;
-};
+  name = name.replace(new RegExp(`\\.${extension}$`), '')
 
-const downloadResource = (absoluteUrl, outputDir) => {
-  if (!isValidUrl(absoluteUrl)) {
-    return Promise.reject(new PageLoaderError(`Invalid URL: ${absoluteUrl}`, 'EINVALIDURL'));
-  }
+  return `${name}.${extension}`
+}
 
-  const filename = generateFileName(absoluteUrl, true);
-  const filepath = path.join(outputDir, filename);
+const getResourceLocalPath = (resourceUrl, resourcesDirName) => {
+  const filename = generateFileName(resourceUrl, true)
+  return `${resourcesDirName}/${filename}`
+}
+
+const downloadResource = (baseUrl, resourceUrl, outputDir) => {
+  const absoluteUrl = new URL(resourceUrl, baseUrl).toString()
+  log(`Starting download: ${absoluteUrl}`)
+
+  const filename = generateFileName(absoluteUrl, true)
+  const filepath = path.join(outputDir, filename)
 
   return axios.get(absoluteUrl, {
     responseType: 'arraybuffer',
@@ -84,123 +75,124 @@ const downloadResource = (absoluteUrl, outputDir) => {
     .then((response) => {
       const data = Buffer.isBuffer(response.data) 
         ? response.data 
-        : Buffer.from(response.data);
+        : Buffer.from(response.data)
       return fs.writeFile(filepath, data)
-        .then(() => filename);
+    })
+    .then(() => {
+      log(`Resource saved: ${filepath}`)
+      return { success: true }
     })
     .catch((error) => {
-      log(`Download failed: ${absoluteUrl}`, error.message);
-      throw error;
-    });
-};
+      log(`Download failed: ${resourceUrl}`, error.message)
+      return { success: false, error: error.message }
+    })
+}
 
-const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
-  if (!isValidUrl(baseUrl)) {
-    throw new PageLoaderError(`Invalid base URL: ${baseUrl}`, 'EINVALIDURL');
-  }
-
-  const $ = cheerio.load(html);
-  const resources = [];
+const findResourcesInHtml = ($, baseUrl) => {
+  const resources = []
   const tagsToProcess = [
     { selector: 'img[src]', attr: 'src' },
     { selector: 'link[href][rel="stylesheet"]', attr: 'href' },
     { selector: 'script[src]', attr: 'src' },
     { selector: 'a[href$=".html"], a[href*=".html?"]', attr: 'href' },
-  ];
-
-  const resourcesBaseName = path.basename(resourcesDir);
+  ]
 
   tagsToProcess.forEach(({ selector, attr }) => {
     $(selector).each((i, element) => {
-      const resourceUrl = $(element).attr(attr);
+      const resourceUrl = $(element).attr(attr)
       if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
-        try {
-          const filename = generateFileName(resourceUrl, true);
-          const newPath = `${resourcesBaseName}/${filename}`;
-          
-          $(element).attr(attr, newPath);
-          
-          resources.push({
-            absoluteUrl: new URL(resourceUrl, baseUrl).toString(),
-            filename,
-            outputDir: resourcesDir
-          });
-        } catch (error) {
-          log(`Skipping resource due to error: ${resourceUrl}`, error.message);
-        }
+        resources.push({
+          url: resourceUrl,
+          element: $(element),
+          attr,
+        })
       }
-    });
-  });
+    })
+  })
 
-  return {
-    html: prettier.format($.html(), prettierOptions),
-    tasks: resources.map(({ absoluteUrl, outputDir }) => ({
-      title: `Downloading ${absoluteUrl}`,
-      task: () => downloadResource(absoluteUrl, outputDir)
-        .catch(() => {}) // Игнорируем ошибки загрузки ресурсов
-    }))
-  };
-};
+  return resources
+}
 
-export default function downloadPage(url, outputDir = process.cwd()) {
-  if (!isValidUrl(url)) {
-    return Promise.reject(new PageLoaderError(`Invalid URL: ${url}`, 'EINVALIDURL'));
+const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
+  const $ = cheerio.load(html)
+  const resourcesDirName = path.basename(resourcesDir)
+  const resources = findResourcesInHtml($, baseUrl)
+
+  if (resources.length === 0) {
+    return Promise.resolve({
+      html: prettier.format(html, prettierOptions),
+      tasks: [],
+    })
   }
 
-  log(`Starting download: ${url}`);
+  resources.forEach((resource) => {
+    const localPath = getResourceLocalPath(resource.url, resourcesDirName)
+    resource.element.attr(resource.attr, localPath)
+  })
+
+  const tasks = resources.map((resource) => ({
+    title: `Downloading ${resource.url}`,
+    task: () => downloadResource(baseUrl, resource.url, resourcesDir),
+  }))
+
+  return Promise.resolve({
+    html: $.html(),
+    tasks,
+  })
+}
+
+export default function downloadPage(url, outputDir = process.cwd()) {
+  log(`Starting download: ${url}`)
+  console.log(`Starting page download: ${url}`)
 
   return fs.access(outputDir, fs.constants.W_OK)
     .then(() => axios.get(url))
     .then((response) => {
-      const pageName = generateFileName(url);
-      const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`);
-      const htmlFilePath = path.join(outputDir, pageName);
+      const pageName = generateFileName(url)
+      console.log(`Generated page name: ${pageName}`)
+
+      const resourcesDir = path.join(outputDir, `${pageName.replace('.html', '')}_files`)
+      console.log(`Resources directory: ${resourcesDir}`)
+
+      const htmlFilePath = path.join(outputDir, pageName)
+      console.log(`HTML file path: ${htmlFilePath}`)
 
       return fs.mkdir(resourcesDir, { recursive: true })
-        .then(() => {
-          const { html, tasks } = prepareDownloadTasks(response.data, url, resourcesDir);
-          
+        .then(() => prepareDownloadTasks(response.data, url, resourcesDir))
+        .then(({ html, tasks }) => {
           if (tasks.length === 0) {
-            return fs.writeFile(htmlFilePath, html);
+            return fs.writeFile(htmlFilePath, html)
           }
 
           return new Listr(tasks, {
             concurrent: true,
             exitOnError: false,
           }).run()
-            .then(() => fs.writeFile(htmlFilePath, html));
+            .then(() => fs.writeFile(htmlFilePath, prettier.format(html, prettierOptions)))
         })
         .then(() => ({
           htmlPath: htmlFilePath,
-          resourcesDir: resourcesDir
-        }));
+          resourcesDir: resourcesDir,
+        }))
     })
     .catch((error) => {
-      let message;
-      let code = error.code || 'UNKNOWN';
-
-      if (error instanceof PageLoaderError) {
-        message = error.message;
-        code = error.code;
-      } else if (error.code === 'ENOTFOUND') {
-        message = `Network error: could not resolve host for ${url}`;
-      } else if (error.code === 'ECONNREFUSED') {
-        message = `Connection refused (${url})`;
-      } else if (error.response) {
-        message = `Request failed with status ${error.response.status}`;
-      } else if (error.code === 'ETIMEDOUT') {
-        message = `Request timeout (${url})`;
-      } else if (error.code === 'EACCES') {
-        message = `Permission denied for ${outputDir}`;
-      } else if (error.code === 'ENOENT') {
-        message = `Directory not found: ${outputDir}`;
-      } else if (error.code === 'ENOTDIR') {
-        message = `Not a directory: ${outputDir}`;
-      } else {
-        message = error.message || 'Unknown error';
+      let message
+      if (error.code === 'ENOTFOUND') {
+        message = `DNS error: host not found (${url})`
       }
-      
-      log(`Error occurred: ${message}`);
-      throw new PageLoaderError(message, code);
-    });
+      else if (error.code === 'ECONNREFUSED') {
+        message = `Connection refused (${url})`
+      }
+      else if (error.response) {
+        message = `HTTP error ${error.response.status}`
+      }
+      else if (error.code === 'ETIMEDOUT') {
+        message = `Request timeout (${url})`
+      }
+      else {
+        message = error.message || 'Unknown error'
+      }
+      log(`Error occurred: ${message}`)
+      throw new PageLoaderError(message, error.code)
+    })
 }
