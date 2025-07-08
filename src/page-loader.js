@@ -99,6 +99,7 @@ const downloadResourceWithGeneration = (baseUrl, resourceUrl, outputDir) => {
 const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
   const $ = cheerio.load(html)
   const resources = []
+  const resourcesDirName = path.basename(resourcesDir)
 
   resources.push({
     url: baseUrl,
@@ -111,10 +112,16 @@ const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
     $(selector).each((i, element) => {
       const resourceUrl = $(element).attr(attr)
       if (resourceUrl && isLocalResource(baseUrl, resourceUrl)) {
+        const absoluteUrl = new URL(resourceUrl, baseUrl).toString()
+        const filename = generateFileName(absoluteUrl)
+        const newPath = `${resourcesDirName}/${filename}`
+
         resources.push({
           url: resourceUrl,
           element: $(element),
           attr,
+          newPath,
+          filename,
         })
       }
     })
@@ -134,13 +141,13 @@ const prepareDownloadTasks = (html, baseUrl, resourcesDir) => {
         task: () => downloadResourceWithGeneration(baseUrl, baseUrl, resourcesDir),
       }
     }
+    
     return {
       title: `Downloading ${resource.url}`,
       task: () => downloadResourceWithGeneration(baseUrl, resource.url, resourcesDir)
-        .then(({ success, filename }) => {
+        .then(({ success }) => {
           if (success) {
-            const newPath = `${path.basename(resourcesDir)}/${filename}`
-            resource.element.attr(resource.attr, newPath)
+            resource.element.attr(resource.attr, resource.newPath)
           }
         }),
     }
